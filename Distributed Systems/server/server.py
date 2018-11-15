@@ -18,11 +18,12 @@ import requests
 try:
     app = Bottle()
 
-    board = "nothing" 
+    board = "nothing"
 
 
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
+    # Should nopt be given to the student
     # ------------------------------------------------------------------------------------------------------
     def add_new_element_to_store(entry_sequence, element, is_propagated_call=False):
         global board, node_id
@@ -56,6 +57,7 @@ try:
 
     # ------------------------------------------------------------------------------------------------------
     # DISTRIBUTED COMMUNICATIONS FUNCTIONS
+    # should be given to the students?
     # ------------------------------------------------------------------------------------------------------
     def contact_vessel(vessel_ip, path, payload=None, req='POST'):
         # Try to contact another server (vessel) through a POST or GET, once
@@ -107,11 +109,17 @@ try:
         Called directly when a user is doing a POST request on /board'''
         global board, node_id
         try:
+	    print ("hello")
             new_entry = request.forms.get('entry')
-            add_new_element_to_store(None, new_entry) # you might want to change None here
-            # you should propagate something
-            # Please use threads to avoid blocking
-            #thread = Thread(target=???,args=???)
+	    new_element = request.forms.get('{{board_element}}')
+           ## add_new_element_to_store(new_element, new_entry) # change 'None' here
+
+ 	    thread = Thread(target=propagate_to_vessels, args=(
+	    'None',add_new_element_to_store,'POST') )#Todo (lab2?) change none to a unused id for the new post
+
+	    thread.daemon=True
+	    thread.start()
+
             # you should create the thread as a deamon
             return True
         except Exception as e:
@@ -120,17 +128,32 @@ try:
 
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
-        # todo
-        pass
+#begin todo
+	global board, node_id
+	##try:
+	new_entry = request.forms.get('entry')
+	add_new_element_to_store()
+
+##	return {'ID':element_id,'Entry':new_entry}
+
+## this exception breaks the simulation, dunno why
+	##except Exception as e:
+	 ##  print e
+	 ##  return False
+    ##return True
+    pass
+#end todo
 
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id):
         # todo
+	#action is either 0 for modify or 1 for delete
         pass
-        
+
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
     # ------------------------------------------------------------------------------------------------------
+    # a single example (index) should be done for get, and one for postGive it to the students-----------------------------------------------------------------------------------------------------
     # Execute the code
     def main():
         global vessel_list, node_id, app
