@@ -3,7 +3,8 @@
 # TDA596 - Lab 1
 # server/server.py
 # Input: Node_ID total_number_of_ID
-# Student: John Doe
+# Student: Christoffer Olsson
+# Student: Alex Nitsche
 # ------------------------------------------------------------------------------------------------------
 import traceback
 import sys
@@ -59,7 +60,8 @@ try:
     # DISTRIBUTED COMMUNICATIONS FUNCTIONS
     # should be given to the students?
     # ------------------------------------------------------------------------------------------------------
-    def contact_vessel(vessel_ip, path, payload=None, req='POST'):
+    def contact_vessel(vessel_ip, path, payload, req):
+        #req = POST in the case of Propagate to vessel
         # Try to contact another server (vessel) through a POST or GET, once
         success = False
         try:
@@ -77,7 +79,8 @@ try:
             print e
         return success
 
-    def propagate_to_vessels(path, payload = None, req = 'POST'):
+    def propagate_to_vessels(path, payload, req):
+        #req = POST in the case of "client_add_received"
         global vessel_list, node_id
 
         for vessel_id, vessel_ip in vessel_list.items():
@@ -95,7 +98,7 @@ try:
     @app.route('/')
     def index():
         global board, node_id
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted({"0":board,}.iteritems()), members_name_string='YOUR NAME')
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted({"0":board,}.iteritems()), members_name_string='Group 97')
 
     @app.get('/board')
     def get_board():
@@ -109,16 +112,17 @@ try:
         Called directly when a user is doing a POST request on /board'''
         global board, node_id
         try:
-	    print ("hello")
-            new_entry = request.forms.get('entry')
-	    new_element = request.forms.get('{{board_element}}')
-           ## add_new_element_to_store(new_element, new_entry) # change 'None' here
+    	    print ("hello")
+            #new_entry = request.forms.get('id')
 
- 	    thread = Thread(target=propagate_to_vessels, args=(
-	    'None',add_new_element_to_store,'POST') )#Todo (lab2?) change none to a unused id for the new post
 
-	    thread.daemon=True
-	    thread.start()
+            new_element = request.forms.get('entry')
+    	    ##new_element = request.forms.get('value')
+            ## add_new_element_to_store(element_id, new_element) # change 'None' here
+     	    thread = Thread(target=propagate_to_vessels, args=(
+    	    '/board/5',new_element,'POST') )#Todo (lab2?) change none to a unused id for the new post
+    	    thread.daemon=True
+    	    thread.start()
 
             # you should create the thread as a deamon
             return True
@@ -126,28 +130,32 @@ try:
             print e
         return False
 
+
+    # ------------------------------------------------------------------------------------------------------
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
-#begin todo
-	global board, node_id
-	##try:
-	new_entry = request.forms.get('entry')
-	add_new_element_to_store()
+        #begin todo
+    	global board, node_id
+    	#try:
+        #new_entry = request.forms.get('id')
+        new_element = request.forms.get('entry')
+        #new_element = request.forms.get('{{board_element}}')
+        add_new_element_to_store(element_id,new_element)
 
-##	return {'ID':element_id,'Entry':new_entry}
+        return {'ID':element_id,'Entry':new_element}
 
-## this exception breaks the simulation, dunno why
-	##except Exception as e:
-	 ##  print e
-	 ##  return False
-    ##return True
-    pass
-#end todo
+        ## this exception breaks the simulation, dunno why
+    	#except Exception as e:
+        #print e
+        #return False
+        #return True
+        #pass
+        #end todo
 
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id):
         # todo
-	#action is either 0 for modify or 1 for delete
+	    #action is either 0 for modify or 1 for delete
         pass
 
     # ------------------------------------------------------------------------------------------------------
