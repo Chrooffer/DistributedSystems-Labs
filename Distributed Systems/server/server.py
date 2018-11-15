@@ -15,12 +15,13 @@ from threading import Thread
 
 from bottle import Bottle, run, request, template
 import requests
+
+
 # ------------------------------------------------------------------------------------------------------
 try:
     app = Bottle()
-
     board = "nothing"
-
+    nrPosts = 0
 
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
@@ -110,17 +111,22 @@ try:
     def client_add_received():
         '''Adds a new element to the board
         Called directly when a user is doing a POST request on /board'''
-        global board, node_id
+        global board, node_id, nrPosts
         try:
     	    print ("hello")
             #new_entry = request.forms.get('id')
+            #Error: 404 Not Found
+            #Sorry, the requested URL <tt> %#039;/board/5&#039; </tt> caused an error SOLVED BY ADDING "/" AT THE END
 
 
             new_element = request.forms.get('entry')
     	    ##new_element = request.forms.get('value')
-            ## add_new_element_to_store(element_id, new_element) # change 'None' here
-     	    thread = Thread(target=propagate_to_vessels, args=(
-    	    '/board/5',new_element,'POST') )#Todo (lab2?) change none to a unused id for the new post
+            add_new_element_to_store(nrPosts, new_element)
+
+            ##add_new_element_to_store(element_id, new_element) -> error global name 'element_id' is not defined
+            path = '/board/'+ str(nrPosts) +'/'
+            nrPosts += 1
+     	    thread = Thread(target=propagate_to_vessels, args=(path,new_element,'POST') )#Todo (lab2?) change none to a unused id for the new post
     	    thread.daemon=True
     	    thread.start()
 
@@ -140,7 +146,7 @@ try:
         #new_entry = request.forms.get('id')
         new_element = request.forms.get('entry')
         #new_element = request.forms.get('{{board_element}}')
-        add_new_element_to_store(element_id,new_element)
+        add_new_element_to_store(element_id,'hej')
 
         return {'ID':element_id,'Entry':new_element}
 
