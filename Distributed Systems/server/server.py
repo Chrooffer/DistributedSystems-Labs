@@ -12,6 +12,8 @@ import time
 import json
 import argparse
 from threading import Thread
+#from copy import deepcopy
+import copy
 
 from bottle import Bottle, run, request, template
 import requests
@@ -20,7 +22,8 @@ import requests
 # ------------------------------------------------------------------------------------------------------
 try:
     app = Bottle()
-    board = "nothing"
+    board = {0:"nothing"}
+
     nrPosts = 0
 
     # ------------------------------------------------------------------------------------------------------
@@ -32,7 +35,7 @@ try:
         success = False
         try:
             print ("in add_new_element_to_store")
-            board = element
+            board.update({entry_sequence: element})
             success = True
         except Exception as e:
             print e
@@ -43,7 +46,12 @@ try:
         success = False
         try:
             print ("in modify_element_in_store")
-            board = modified_element
+            #copy.deepcopy(board[, memo])
+            tmpBoard = copy.deepcopy(board)
+            del tmpBoard[entry_sequence]
+            tmpBoard.update({entry_sequence: element})
+            board = copy.deepcopy(tmpBoard)
+
             success = True
         except Exception as e:
             print e
@@ -54,11 +62,17 @@ try:
         success = False
         try:
             print ("in delete_element_from_store")
-            board = ""
+            del board[entry_sequence]
             success = True
         except Exception as e:
             print e
         return success
+
+    def new_post_number():
+        i = 0
+        while board.has_key(i):
+            i += 1
+        return i
 
     # ------------------------------------------------------------------------------------------------------
     # DISTRIBUTED COMMUNICATIONS FUNCTIONS
@@ -126,7 +140,6 @@ try:
             #Error: 404 Not Found
             #Sorry, the requested URL <tt> %#039;/board/5&#039; </tt> caused an error SOLVED BY ADDING "/" AT THE END
 
-
             new_element = request.forms.get('entry')
             print (new_element)
     	    ##new_element = request.forms.get('value')
@@ -154,7 +167,7 @@ try:
     	try:
 
             print ("in /board/<element_id:int>/")
-            new_element = request.body.read()#corrcet form
+            new_element = request.body.read()#correct form
 
             #new_element = request.forms.get('{{board_element}}')
             add_new_element_to_store(element_id,new_element)
