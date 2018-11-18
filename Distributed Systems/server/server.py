@@ -31,6 +31,7 @@ try:
         global board, node_id
         success = False
         try:
+            print ("in add_new_element_to_store")
             board = element
             success = True
         except Exception as e:
@@ -41,6 +42,7 @@ try:
         global board, node_id
         success = False
         try:
+            print ("in modify_element_in_store")
             board = modified_element
             success = True
         except Exception as e:
@@ -51,6 +53,7 @@ try:
         global board, node_id
         success = False
         try:
+            print ("in delete_element_from_store")
             board = ""
             success = True
         except Exception as e:
@@ -66,6 +69,7 @@ try:
         # Try to contact another server (vessel) through a POST or GET, once
         success = False
         try:
+            print ("in contact_vessel")
             if 'POST' in req:
                 res = requests.post('http://{}{}'.format(vessel_ip, path), data=payload)
             elif 'GET' in req:
@@ -81,6 +85,7 @@ try:
         return success
 
     def propagate_to_vessels(path, payload, req):
+        print ("in propagate_to_vessels")
         #req = POST in the case of "client_add_received"
         global vessel_list, node_id
 
@@ -98,6 +103,7 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.route('/')
     def index():
+        *
         global board, node_id
         return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted({"0":board,}.iteritems()), members_name_string='Group 97')
 
@@ -105,6 +111,7 @@ try:
     def get_board():
         global board, node_id
         print board
+        print ("in /board (get)")
         return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted({"0":board,}.iteritems()))
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board')
@@ -113,13 +120,14 @@ try:
         Called directly when a user is doing a POST request on /board'''
         global board, node_id, nrPosts
         try:
-    	    print ("hello")
+    	    print ("in /board (post)")
             #new_entry = request.forms.get('id')
             #Error: 404 Not Found
             #Sorry, the requested URL <tt> %#039;/board/5&#039; </tt> caused an error SOLVED BY ADDING "/" AT THE END
 
 
             new_element = request.forms.get('entry')
+            print (new_element)
     	    ##new_element = request.forms.get('value')
             add_new_element_to_store(nrPosts, new_element)
 
@@ -144,9 +152,12 @@ try:
     	global board, node_id
     	#try:
         #new_entry = request.forms.get('id')
-        new_element = request.forms.get('entry')
+
+        print ("in /board/<element_id:int>/")
+        new_element = request.forms.get('data')
+        print (new_element)
         #new_element = request.forms.get('{{board_element}}')
-        add_new_element_to_store(element_id,'hej')
+        add_new_element_to_store(element_id,new_element)
 
         return {'ID':element_id,'Entry':new_element}
 
@@ -160,6 +171,7 @@ try:
 
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id):
+        print ("in /propagate/<action>/<element_id>")
         # todo
 	    #action is either 0 for modify or 1 for delete
         pass
