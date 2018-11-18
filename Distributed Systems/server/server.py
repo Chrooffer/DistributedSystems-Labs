@@ -47,6 +47,7 @@ try:
         try:
             print ("in modify_element_in_store")
             #copy.deepcopy(board[, memo])
+            #Could potentially just be the same code as add_new_element_to_store, but doing this for concurrency
             tmpBoard = copy.deepcopy(board)
             del tmpBoard[entry_sequence]
             tmpBoard.update({entry_sequence: element})
@@ -120,26 +121,26 @@ try:
     def index():
         print ("in / (route)")
         global board, node_id
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted({"0":board,}.iteritems()), members_name_string='Group 97')
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='Group 97')
 
     @app.get('/board')
     def get_board():
         global board, node_id
         print board
         print ("in /board (get)")
-        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted({"0":board,}.iteritems()))
+        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()))
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board')
     def client_add_received():
         '''Adds a new element to the board
         Called directly when a user is doing a POST request on /board'''
-        global board, node_id, nrPosts
+        global board, node_id , nrPosts
         try:
     	    print ("in /board (post)")
             #new_entry = request.forms.get('id')
             #Error: 404 Not Found
             #Sorry, the requested URL <tt> %#039;/board/5&#039; </tt> caused an error SOLVED BY ADDING "/" AT THE END
-
+            nrPosts = new_post_number()
             new_element = request.forms.get('entry')
             print (new_element)
     	    ##new_element = request.forms.get('value')
@@ -147,7 +148,7 @@ try:
 
             ##add_new_element_to_store(element_id, new_element) -> error global name 'element_id' is not defined
             path = '/board/'+ str(nrPosts) +'/'
-            nrPosts += 1
+
      	    thread = Thread(target=propagate_to_vessels, args=(path,new_element,'POST') )#Todo (lab2?) change none to a unused id for the new post
     	    thread.daemon=True
     	    thread.start()
@@ -173,6 +174,7 @@ try:
             add_new_element_to_store(element_id,new_element)
 
             return {'ID':element_id,'Entry':new_element}
+            #return True
 
         ## this exception breaks the simulation, dunno why
     	except Exception as e:
@@ -186,13 +188,25 @@ try:
     def propagation_received(action, element_id):
         print ("in /propagate/<action>/<element_id>")
         # todo
+        try:
+            elementToModify = request.body.read()#correct form
+            if action == 0:
+                modify_element_in_store(element_id,elementToModify)
+            elif action == 1:
+                delete_element_from_store(element_id)
+            return True
+        except Exception as e:
+            print e
+            return False
 	    #action is either 0 for modify or 1 for delete
-        pass
+        #pass
+
 
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
     # ------------------------------------------------------------------------------------------------------
-    # a single example (index) should be done for get, and one for postGive it to the students-----------------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------
+    # a single example (index) should be done for get, and one for post Give it to the students
     # Execute the code
     def main():
         global vessel_list, node_id, app
