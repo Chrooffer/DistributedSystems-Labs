@@ -69,10 +69,11 @@ try:
         # Try to contact another server (vessel) through a POST or GET, once
         success = False
         try:
-            print ("in contact_vessel")
             if 'POST' in req:
+                print("in contact vessel POST")
                 res = requests.post('http://{}{}'.format(vessel_ip, path), data=payload)
             elif 'GET' in req:
+                print ("in contact_vessel GET")
                 res = requests.get('http://{}{}'.format(vessel_ip, path))
             else:
                 print 'Non implemented feature!'
@@ -150,21 +151,20 @@ try:
     def client_action_received(element_id):
         #begin todo
     	global board, node_id
-    	#try:
-        #new_entry = request.forms.get('id')
+    	try:
 
-        print ("in /board/<element_id:int>/")
-        new_element = request.forms.get('data')
-        print (new_element)
-        #new_element = request.forms.get('{{board_element}}')
-        add_new_element_to_store(element_id,new_element)
+            print ("in /board/<element_id:int>/")
+            new_element = request.body.read()#corrcet form
 
-        return {'ID':element_id,'Entry':new_element}
+            #new_element = request.forms.get('{{board_element}}')
+            add_new_element_to_store(element_id,new_element)
+
+            return {'ID':element_id,'Entry':new_element}
 
         ## this exception breaks the simulation, dunno why
-    	#except Exception as e:
-        #print e
-        #return False
+    	except Exception as e:
+            print e
+            return False
         #return True
         #pass
         #end todo
