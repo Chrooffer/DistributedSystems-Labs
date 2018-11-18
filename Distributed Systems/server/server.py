@@ -103,7 +103,7 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.route('/')
     def index():
-        *
+        print ("in / (route)")
         global board, node_id
         return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted({"0":board,}.iteritems()), members_name_string='Group 97')
 
