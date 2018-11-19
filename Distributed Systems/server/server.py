@@ -34,7 +34,7 @@ try:
         global board, node_id
         success = False
         try:
-            print ("in add_new_element_to_store")
+            #print ("in add_new_element_to_store")#debugtool
             board.update({entry_sequence: element})
             success = True
         except Exception as e:
@@ -45,7 +45,7 @@ try:
         global board, node_id
         success = False
         try:
-            print ("in modify_element_in_store")
+            #print ("in modify_element_in_store")#debugtool
             #copy.deepcopy(board[, memo])
             #Could potentially just be the same code as add_new_element_to_store, but doing this for concurrency
             board.update({entry_sequence: modified_element})
@@ -58,13 +58,14 @@ try:
         global board, node_id
         success = False
         try:
-            print ("in delete_element_from_store")
+            #print ("in delete_element_from_store")#debugtool
             del board[entry_sequence]
             success = True
         except Exception as e:
             print e
         return success
 
+        #new_post_number checks for the first avaviable number and returns it
     def new_post_number():
         i = 0
         while board.has_key(i):
@@ -81,14 +82,13 @@ try:
         success = False
         try:
             if 'POST' in req:
-                print("in contact vessel POST")
+                #print("in contact vessel POST")#debugtool
                 res = requests.post('http://{}{}'.format(vessel_ip, path), data=payload)
             elif 'GET' in req:
-                print ("in contact_vessel GET")
+                #print ("in contact_vessel GET")#debugtool
                 res = requests.get('http://{}{}'.format(vessel_ip, path))
             else:
                 print 'Non implemented feature!'
-            # result is in res.text or res.json()
             print(res.text)
             if res.status_code == 200:
                 success = True
@@ -97,7 +97,7 @@ try:
         return success
 
     def propagate_to_vessels(path, payload, req):
-        print ("in propagate_to_vessels")
+        #print ("in propagate_to_vessels")#debugtool
         #req = POST in the case of "client_add_received"
         global vessel_list, node_id
 
@@ -132,22 +132,20 @@ try:
         Called directly when a user is doing a POST request on /board'''
         global board, node_id , nrPosts
         try:
-    	    print ("in /board (post)")
+    	    #print ("in /board (post)") #debugtool
 
+            #Code checks for the first avaviable number
             nrPosts = new_post_number()
             new_element = request.forms.get('entry')
-            print (new_element)
-    	    ##new_element = request.forms.get('value')
+            #print (new_element) #debugtool
             add_new_element_to_store(nrPosts, new_element)
 
-            ##add_new_element_to_store(element_id, new_element) -> error global name 'element_id' is not defined
             path = '/board/'+ str(nrPosts) +'/'
             tempdict = {"entry" : new_element}
-     	    thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )#Todo (lab2?) change none to a unused id for the new post
+     	    thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
     	    thread.daemon=True
     	    thread.start()
 
-            # you should create the thread as a deamon
             return {'id':element_id,'entry':new_element}
         except Exception as e:
             print e
@@ -157,16 +155,14 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
-        #begin todo
     	global board, node_id
     	try:
             print ("in /board/<element_id:int>/")
             new_element = request.forms.get("entry")
-            print(new_element)
+            #print(new_element) #debugtool
 
             action = request.forms.get('delete')
-            print(action)
-            #new_element = request.forms.get('{{board_element}}')
+            #print(action) #debugtool
             if (action == '1') or (action == '0'):
                 if (action == '1'):
                     delete_element_from_store(element_id)
@@ -181,22 +177,15 @@ try:
                 add_new_element_to_store(element_id, new_element)
 
             return {'id':element_id,'entry':new_element}
-            #return True
-
-        ## this exception breaks the simulation, dunno why
     	except Exception as e:
             print e
             return False
-        #return True
-        #pass
-        #end todo
 
     @app.post('/propagate/<action:int>/<element_id:int>/')
     def propagation_received(action, element_id):
         print ("in /propagate/<action>/<element_id>")
-        # todo
         try:
-            elementToModify = request.forms.get("entry")#correct form
+            elementToModify = request.forms.get("entry")
             if action == 0:
                 modify_element_in_store(element_id,elementToModify)
             elif action == 1:
@@ -206,8 +195,6 @@ try:
             print e
             return False
 	    #action is either 0 for modify or 1 for delete
-        #pass
-
 
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
@@ -225,7 +212,6 @@ try:
         args = parser.parse_args()
         node_id = args.nid
         vessel_list = dict()
-        # We need to write the other vessels IP, based on the knowledge of their number
         for i in range(1, args.nbv):
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
 
