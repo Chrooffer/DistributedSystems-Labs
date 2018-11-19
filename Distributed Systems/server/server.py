@@ -148,8 +148,8 @@ try:
 
             ##add_new_element_to_store(element_id, new_element) -> error global name 'element_id' is not defined
             path = '/board/'+ str(nrPosts) +'/'
-
-     	    thread = Thread(target=propagate_to_vessels, args=(path,new_element,'POST') )#Todo (lab2?) change none to a unused id for the new post
+            tempdict = {"entry" : new_element}
+     	    thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )#Todo (lab2?) change none to a unused id for the new post
     	    thread.daemon=True
     	    thread.start()
 
@@ -168,12 +168,24 @@ try:
     	try:
 
             print ("in /board/<element_id:int>/")
-            new_element = request.body.read()#correct form
+            new_element = request.forms.get("entry")
+            print(new_element)
 
+            action = request.forms.get('delete')
+            print(action)
             #new_element = request.forms.get('{{board_element}}')
-            add_new_element_to_store(element_id,new_element)
+            if action == 1:
+                delete_element_from_store(element_id)
+            else:
+                modify_element_in_store(element_id, new_element)
 
-            return {'ID':element_id,'Entry':new_element}
+            path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
+            tempdict = {"entry" : new_element}
+            thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
+            thread.daemon=True
+            thread.start()
+
+            return {'id':element_id,'entry':new_element}
             #return True
 
         ## this exception breaks the simulation, dunno why

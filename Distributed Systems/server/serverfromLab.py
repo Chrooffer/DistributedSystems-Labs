@@ -111,6 +111,7 @@ try:
                 if not success:
                     print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
 
+
     # ------------------------------------------------------------------------------------------------------
     # ROUTES
     # ------------------------------------------------------------------------------------------------------
@@ -135,39 +136,21 @@ try:
         Called directly when a user is doing a POST request on /board'''
         global board, node_id , nrPosts
         try:
-    	    print ("in /board (post)")
-            #new_entry = request.forms.get('id')
-            #Error: 404 Not Found
+            print ("in /board (post)")
             #Sorry, the requested URL <tt> %#039;/board/5&#039; </tt> caused an error SOLVED BY ADDING "/" AT THE END
             nrPosts = new_post_number()
             new_element = request.forms.get('entry')
-    	    new_id = request.forms.get('id')
-    	    new_delete = request.forms.get('delete')
-    	    print(new_id)
-    	    print(new_delete)
-    	    if (new_delete == 0 or new_delete == 1):
-                delete_element_from_store(nrPosts)
-        		path = '/propogate/'+ str(new_delete) +'/' + str(new_id) +'/'
-        		tempdict = {"entry" : new_element} #, "delete" : new_delete
-        		thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
-                thread.daemon=True
-                thread.start()
-            else:
-                print (new_element)
-                ##new_element = request.forms.get('value')
-                add_new_element_to_store(nrPosts, new_element)
-                ##add_new_element_to_store(element_id, new_element) -> error global name 'element_id' is not defined
-                path = '/board/'+ str(nrPosts) +'/'
-                tempdict = {"entry" : new_element}
-                thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )#Todo (lab2?) change none to a unused id for the new post
-                thread.daemon=True
-                thread.start()
-
-            # you should create the thread as a deamon
-            return True
+            add_new_element_to_store(nrPosts, new_element)
+            path = '/board/'+ str(nrPosts) +'/'
+            tempdict = {"entry" : new_element}
+            thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )#Todo (lab2?) change none to a unused id for the new post
+            thread.daemon=True# you should create the thread as a deamon
+            thread.start()
+            return {'ID':nrPosts,'Entry':new_element}
         except Exception as e:
             print e
         return False
+
 
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board/<element_id:int>/')
@@ -176,27 +159,38 @@ try:
     	global board, node_id
     	try:
             print ("in /board/<element_id:int>/")
-            #new_element = request.body.read()#correct form
+            new_element = request.forms.get("Entry")
+            #new_elementNoCaps = request.forms.get("entry")#correct form
             #new_element = request.forms.get('{{board_element}}')
-            new_element = request.forms.get('entry')
-            add_new_element_to_store(element_id,new_element)
-            return {'id':element_id,'entry':new_element}
+            print (new_element)
+            #print (new_elementNoCaps + "2")
+            new_delete = request.forms.get('delete')
+            print(new_delete)
+            if new_delete == 1:
+                delete_element_from_store(new_id)
+            else:
+                modify_element_in_store(new_id, new_element)
+
+            path = '/propagate/'+ str(new_delete) +'/' + str(new_id) +'/'
+            tempdict = {"ID" : nrPosts,"Entry" : new_element}
+            thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
+            thread.daemon=True
+            thread.start()
+
+            return {'ID':element_id,'Entry':new_element}
             #return True
-            ## this exception breaks the simulation, dunno why
     	except Exception as e:
             print e
             return False
-        #return True
-        #pass
-        #end todo
 
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id):
         print ("in /propagate/<action>/<element_id>")
         # todo
         try:
+            #elementToModify = request.body.read()#correct form
+            elementToModify = request.forms.get('Entry')
             if action == 0:
-		elementToModify = request.body.read()#correct form
                 modify_element_in_store(element_id,elementToModify)
             elif action == 1:
                 delete_element_from_store(element_id)
