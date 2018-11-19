@@ -46,8 +46,6 @@ try:
         success = False
         try:
             #print ("in modify_element_in_store")#debugtool
-            #copy.deepcopy(board[, memo])
-            #Could potentially just be the same code as add_new_element_to_store, but doing this for concurrency
             board.update({entry_sequence: modified_element})
             success = True
         except Exception as e:
@@ -163,7 +161,7 @@ try:
 
             action = request.forms.get('delete')
             #print(action) #debugtool
-            if (action == '1') or (action == '0'):
+            if (action == '0') or (action == '1'):
                 if (action == '1'):
                     delete_element_from_store(element_id)
                 else:
