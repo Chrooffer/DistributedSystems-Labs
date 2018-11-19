@@ -48,7 +48,7 @@ try:
             print ("in modify_element_in_store")
             #copy.deepcopy(board[, memo])
             #Could potentially just be the same code as add_new_element_to_store, but doing this for concurrency
-            board.update({entry_sequence: element})
+            board.update({entry_sequence: modified_element})
             success = True
         except Exception as e:
             print e
@@ -133,9 +133,7 @@ try:
         global board, node_id , nrPosts
         try:
     	    print ("in /board (post)")
-            #new_entry = request.forms.get('id')
-            #Error: 404 Not Found
-            #Sorry, the requested URL <tt> %#039;/board/5&#039; </tt> caused an error SOLVED BY ADDING "/" AT THE END
+
             nrPosts = new_post_number()
             new_element = request.forms.get('entry')
             print (new_element)
@@ -174,7 +172,7 @@ try:
                     delete_element_from_store(element_id)
                 else:
                     modify_element_in_store(element_id, new_element)
-                path = '/propagate/'+ action +'/' + str(element_id) +'/'
+                path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
                 tempdict = {"entry" : new_element}
                 thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
                 thread.daemon=True
@@ -193,7 +191,7 @@ try:
         #pass
         #end todo
 
-    @app.post('/propagate/<action>/<element_id>')
+    @app.post('/propagate/<action:int>/<element_id:int>/')
     def propagation_received(action, element_id):
         print ("in /propagate/<action>/<element_id>")
         # todo
