@@ -63,7 +63,7 @@ try:
             print e
         return success
 
-        #new_post_number checks for the first avaviable number and returns it
+    #new_post_number checks for the first avaviable number and returns it
     def new_post_number():
         i = 0
         while board.has_key(i):
@@ -180,7 +180,7 @@ try:
             return False
 
     @app.post('/propagate/<action:int>/<element_id:int>/')
-    def propagation_received(action, element_id):
+    def propagation_received(action, element_id):#action is either 0 for modify or 1 for delete
         print ("in /propagate/<action>/<element_id>")
         try:
             elementToModify = request.forms.get("entry")
@@ -192,7 +192,7 @@ try:
         except Exception as e:
             print e
             return False
-	    #action is either 0 for modify or 1 for delete
+
 
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
