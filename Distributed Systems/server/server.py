@@ -48,11 +48,7 @@ try:
             print ("in modify_element_in_store")
             #copy.deepcopy(board[, memo])
             #Could potentially just be the same code as add_new_element_to_store, but doing this for concurrency
-            tmpBoard = copy.deepcopy(board)
-            del tmpBoard[entry_sequence]
-            tmpBoard.update({entry_sequence: element})
-            board = copy.deepcopy(tmpBoard)
-
+            board.update({entry_sequence: element})
             success = True
         except Exception as e:
             print e
@@ -154,7 +150,7 @@ try:
     	    thread.start()
 
             # you should create the thread as a deamon
-            return True
+            return {'id':element_id,'entry':new_element}
         except Exception as e:
             print e
         return False
@@ -166,7 +162,6 @@ try:
         #begin todo
     	global board, node_id
     	try:
-
             print ("in /board/<element_id:int>/")
             new_element = request.forms.get("entry")
             print(new_element)
@@ -174,16 +169,18 @@ try:
             action = request.forms.get('delete')
             print(action)
             #new_element = request.forms.get('{{board_element}}')
-            if action == 1:
-                delete_element_from_store(element_id)
+            if (action == '1') or (action == '0'):
+                if (action == '1'):
+                    delete_element_from_store(element_id)
+                else:
+                    modify_element_in_store(element_id, new_element)
+                path = '/propagate/'+ action +'/' + str(element_id) +'/'
+                tempdict = {"entry" : new_element}
+                thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
+                thread.daemon=True
+                thread.start()
             else:
-                modify_element_in_store(element_id, new_element)
-
-            path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
-            tempdict = {"entry" : new_element}
-            thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
-            thread.daemon=True
-            thread.start()
+                add_new_element_to_store(element_id, new_element)
 
             return {'id':element_id,'entry':new_element}
             #return True
@@ -201,7 +198,7 @@ try:
         print ("in /propagate/<action>/<element_id>")
         # todo
         try:
-            elementToModify = request.body.read()#correct form
+            elementToModify = request.forms.get("entry")#correct form
             if action == 0:
                 modify_element_in_store(element_id,elementToModify)
             elif action == 1:
