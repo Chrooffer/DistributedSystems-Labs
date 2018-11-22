@@ -46,7 +46,8 @@ try:
         success = False
         try:
             #print ("in modify_element_in_store")#debugtool
-            board.update({entry_sequence: modified_element})
+            #board.update({entry_sequence: modified_element})
+            board[entry_sequence] = modified_element
             success = True
         except Exception as e:
             print e
@@ -82,6 +83,7 @@ try:
             if 'POST' in req:
                 #print("in contact vessel POST")#debugtool
                 res = requests.post('http://{}{}'.format(vessel_ip, path), data=payload)
+                print 'http://{}{}'.format(vessel_ip, path)
             elif 'GET' in req:
                 #print ("in contact_vessel GET")#debugtool
                 res = requests.get('http://{}{}'.format(vessel_ip, path))
@@ -144,7 +146,7 @@ try:
     	    thread.daemon=True
     	    thread.start()
 
-            return {'id':element_id,'entry':new_element}
+            return {'id':nrPosts,'entry':new_element}
         except Exception as e:
             print e
         return False
