@@ -24,8 +24,6 @@ try:
     app = Bottle()
     board = {0:"nothing"}
 
-    nrPosts = 0
-
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
     # Should nopt be given to the student
@@ -35,6 +33,7 @@ try:
         success = False
         try:
             #print ("in add_new_element_to_store")#debugtool
+
             board.update({entry_sequence: element})
             success = True
         except Exception as e:
@@ -45,9 +44,9 @@ try:
         global board, node_id
         success = False
         try:
-            #print ("in modify_element_in_store")#debugtool
-            #board.update({entry_sequence: modified_element})
-            board[entry_sequence] = modified_element
+            #print ("in modify_element_in_store") #debugtool
+
+            board[entry_sequence]=modified_element
             success = True
         except Exception as e:
             print e
@@ -64,7 +63,7 @@ try:
             print e
         return success
 
-    #new_post_number checks for the first avaviable number and returns it
+        #new_post_number checks for the first avaviable key and returns it
     def new_post_number():
         i = 0
         while board.has_key(i):
@@ -76,14 +75,12 @@ try:
     # should be given to the students?
     # ------------------------------------------------------------------------------------------------------
     def contact_vessel(vessel_ip, path, payload, req):
-        #req = POST in the case of Propagate to vessel
         # Try to contact another server (vessel) through a POST or GET, once
         success = False
         try:
             if 'POST' in req:
                 #print("in contact vessel POST")#debugtool
                 res = requests.post('http://{}{}'.format(vessel_ip, path), data=payload)
-                #print 'http://{}{}'.format(vessel_ip, path)
             elif 'GET' in req:
                 #print ("in contact_vessel GET")#debugtool
                 res = requests.get('http://{}{}'.format(vessel_ip, path))
@@ -98,7 +95,6 @@ try:
 
     def propagate_to_vessels(path, payload, req):
         #print ("in propagate_to_vessels")#debugtool
-        #req = POST in the case of "client_add_received"
         global vessel_list, node_id
 
         for vessel_id, vessel_ip in vessel_list.items():
@@ -115,38 +111,39 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.route('/')
     def index():
-        print ("in / (route)")
+        #print ("in / (route)")#debugtool
         global board, node_id
         return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='Group 97')
 
     @app.get('/board')
     def get_board():
         global board, node_id
-        print board
-        print ("in /board (get)")
+        #print ("in /board (get)") #debugtool
         return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()))
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board')
     def client_add_received():
         '''Adds a new element to the board
         Called directly when a user is doing a POST request on /board'''
-        global board, node_id , nrPosts
+        global board, node_id
         try:
     	    #print ("in /board (post)") #debugtool
 
-            #Code checks for the first avaviable number
+            #Calls on help function
             nrPosts = new_post_number()
+
+            #Get the entry and add it to local board
             new_element = request.forms.get('entry')
-            #print (new_element) #debugtool
             add_new_element_to_store(nrPosts, new_element)
 
+            #Propagate the update to all the other vessels
             path = '/board/'+ str(nrPosts) +'/'
             tempdict = {"entry" : new_element}
      	    thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
     	    thread.daemon=True
     	    thread.start()
 
-            return {'id':nrPosts,'entry':new_element}
+            return {'id':element_id,'entry':new_element}
         except Exception as e:
             print e
         return False
@@ -157,17 +154,22 @@ try:
     def client_action_received(element_id):
     	global board, node_id
     	try:
-            print ("in /board/<element_id:int>/")
-            new_element = request.forms.get("entry")
-            #print(new_element) #debugtool
+            #print ("in /board/<element_id:int>/") #debugtool
 
-            action = request.forms.get('delete')
-            #print(action) #debugtool
-            if (action == '0') or (action == '1'):
+            #Get the new element, and the comand (optional)
+            new_element = request.forms.get("entry")
+            action = request.forms.get("delete")
+
+            #Check if it has a comand
+            if (action != None):
+
+                #Do the change localy
                 if (action == '1'):
                     delete_element_from_store(element_id)
                 else:
                     modify_element_in_store(element_id, new_element)
+
+                #Propagate it to the other vessels
                 path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
                 tempdict = {"entry" : new_element}
                 thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
@@ -182,19 +184,24 @@ try:
             return False
 
     @app.post('/propagate/<action:int>/<element_id:int>/')
-    def propagation_received(action, element_id):#action is either 0 for modify or 1 for delete
-        print ("in /propagate/<action>/<element_id>")
+    def propagation_received(action, element_id):
+        #print ("in /propagate/<action>/<element_id>") #debugtool
         try:
             elementToModify = request.forms.get("entry")
+            #print(element_id) #debugtool
+            #print(elementToModify) #debugtool
+
+            #Check to see the comand of the action
             if action == 0:
                 modify_element_in_store(element_id,elementToModify)
             elif action == 1:
                 delete_element_from_store(element_id)
+
             return {'id':element_id,'entry':elementToModify}
         except Exception as e:
             print e
             return False
-
+	        #action is either 0 for modify or 1 for delete
 
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
