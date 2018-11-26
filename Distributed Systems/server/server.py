@@ -83,7 +83,7 @@ try:
             if 'POST' in req:
                 #print("in contact vessel POST")#debugtool
                 res = requests.post('http://{}{}'.format(vessel_ip, path), data=payload)
-                print 'http://{}{}'.format(vessel_ip, path)
+                #print 'http://{}{}'.format(vessel_ip, path)
             elif 'GET' in req:
                 #print ("in contact_vessel GET")#debugtool
                 res = requests.get('http://{}{}'.format(vessel_ip, path))
@@ -190,7 +190,7 @@ try:
                 modify_element_in_store(element_id,elementToModify)
             elif action == 1:
                 delete_element_from_store(element_id)
-            return True
+            return {'id':element_id,'entry':elementToModify}
         except Exception as e:
             print e
             return False
