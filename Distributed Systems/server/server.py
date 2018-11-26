@@ -14,6 +14,7 @@ import argparse
 from threading import Thread
 #from copy import deepcopy
 import copy
+from random import *
 
 from bottle import Bottle, run, request, template
 import requests
@@ -23,6 +24,8 @@ import requests
 try:
     app = Bottle()
     board = {0:"nothing"}
+    leader_priority = randint(1,10000)
+    leader_id = None
 
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
@@ -62,13 +65,15 @@ try:
         except Exception as e:
             print e
         return success
-
+    # ------------------------------------------------------------------------------------------------------
         #new_post_number checks for the first avaviable key and returns it
     def new_post_number():
         i = 0
         while board.has_key(i):
             i += 1
         return i
+
+
 
     # ------------------------------------------------------------------------------------------------------
     # DISTRIBUTED COMMUNICATIONS FUNCTIONS
@@ -178,6 +183,7 @@ try:
             else:
                 add_new_element_to_store(element_id, new_element)
 
+
             return {'id':element_id,'entry':new_element}
     	except Exception as e:
             print e
@@ -192,6 +198,7 @@ try:
             #print(elementToModify) #debugtool
 
             #Check to see the comand of the action
+
             if action == 0:
                 modify_element_in_store(element_id,elementToModify)
             elif action == 1:
@@ -203,6 +210,31 @@ try:
             return False
 	        #action is either 0 for modify or 1 for delete
 
+    #-------------------------------------------------------------------------------------------------------
+    @app.post('/election/<action:int>/')
+    def start_election(action):
+        global leader_id, amount_of_vessels
+        try:
+            candidates = request.forms.get("entry")
+            #dict=  {"entry":{0:1000, 1:23,...}}
+
+            #if we have not added our id and priority to the candidates, then do so and propegate to the next node
+            if not (node_id in candidates):
+                path = '/election/'+ '0'+'/'
+
+                tmpdict = dict()
+                tmpdict = candidates.update({node_id: leader_priority})
+                #
+                next_ip = '10.1.0.{}'.format(str(node_id % amount_of_vessels)+1)
+                thread = Thread(target=contact_vessel, args=(next_ip,path,tmpdict,'POST') )
+                thread.daemon=True
+                thread.start()
+                #if node_id == starter_id election is over
+
+            return {'id':node_id,'entry':tmpdict}
+        except Exception as e:
+            print e
+            return False
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
     # ------------------------------------------------------------------------------------------------------
@@ -210,7 +242,7 @@ try:
     # a single example (index) should be done for get, and one for post Give it to the students
     # Execute the code
     def main():
-        global vessel_list, node_id, app
+        global vessel_list, node_id, app, amount_of_vessels
 
         port = 80
         parser = argparse.ArgumentParser(description='Your own implementation of the distributed blackboard')
@@ -218,6 +250,7 @@ try:
         parser.add_argument('--vessels', nargs='?', dest='nbv', default=1, type=int, help='The total number of vessels present in the system')
         args = parser.parse_args()
         node_id = args.nid
+        amount_of_vessels = args.nbv
         vessel_list = dict()
         for i in range(1, args.nbv):
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
