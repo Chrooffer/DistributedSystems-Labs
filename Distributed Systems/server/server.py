@@ -11,8 +11,9 @@ import sys
 import time
 import json
 import argparse
+import ast
 from threading import Thread
-#from copy import deepcopy
+from time import sleep
 import copy
 from random import *
 
@@ -24,7 +25,7 @@ import requests
 try:
     app = Bottle()
     board = {0:"nothing"}
-    leader_priority = randint(1,10000)
+    priority = randint(1,10000)
     leader_id = None
 
     # ------------------------------------------------------------------------------------------------------
@@ -74,14 +75,22 @@ try:
         return i
 
     def check_leader():
+        global node_id
+        success = False
         try:
-            success = False
+            #if we don't have a leader start an election
             if leader_id == None:
-                dictus = dict()
-                path = '/election/' + str(0) + '/'
-                res = requests.post('http://{}{}'.format(node_id, path), data=dictus)
-                if res == 200:
-                    success = True
+                #payload
+                dict = {"entry": str({node_id: priority}), "starter_id":node_id}
+
+                print (dict["entry"]) #debugtool
+                #dedicated path for the election and the next node's ip
+                path = '/election/0/'
+                ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
+                return contact_vessel(ip, path, dict, 'POST')
+                #res = requests.post('http://{}{}'.format(node_id, path), data=dictus)
+
+            success = True
         except Exception as e:
             print e
         return success
@@ -143,28 +152,26 @@ try:
         Called directly when a user is doing a POST request on /board'''
         global board, node_id
         try:
-            if check_leader():
-        	    #print ("in /board (post)") #debugtool
+    	    #print ("in /board (post)") #debugtool
+            print (check_leader()) #debugtool
+            print(leader_id) #debugtool
 
-                #Calls on help function
-                #nrPosts = new_post_number()
 
-                #Get the entry and add it to local board
-                new_element = request.forms.get('entry')
-                #add_new_element_to_store(nrPosts, new_element)
+            #Calls on help function
+            nrPosts = new_post_number()
 
-                #Propagate the call to the leader
-                leader_ip = '10.1.0.{}'.format(leader_id)
-                path = '/leader'
-                tempdict = {"entry" : new_element}
+            #Get the entry and add it to local board
+            new_element = request.forms.get('entry')
+            add_new_element_to_store(nrPosts, new_element)
 
-         	    thread = Thread(target=contact_vessel, args=(leader_ip,path,tempdict,'POST') )
-        	    thread.daemon=True
-        	    thread.start()
-            else:
-                print("Leader Not Found")
+            #Propagate the update to all the other vessels
+            path = '/board/'+ str(nrPosts) +'/'
+            tempdict = {"entry" : new_element}
+     	    thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
+    	    thread.daemon=True
+    	    thread.start()
 
-            return {'id':element_id,'entry':new_element}
+            return {'id':node_id,'entry':new_element}
         except Exception as e:
             print e
         return False
@@ -181,14 +188,23 @@ try:
             new_element = request.forms.get("entry")
             action = request.forms.get("delete")
 
-            #Propagate it to the other vessels
-            leader_ip = '10.1.0.{}'.format(leader_id)
-            path = '/leader/'+ str(action) +'/' + str(element_id)
-            tempdict = {"entry" : new_element}
+            #Check if it has a comand
+            if (action != None):
 
-            thread = Thread(target=contact_vessel, args=(leader_ip,path,tempdict,'POST') )
-            thread.daemon=True
-            thread.start()
+                #Do the change localy
+                if (action == '1'):
+                    delete_element_from_store(element_id)
+                else:
+                    modify_element_in_store(element_id, new_element)
+
+                #Propagate it to the other vessels
+                path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
+                tempdict = {"entry" : new_element}
+                thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
+                thread.daemon=True
+                thread.start()
+            else:
+                add_new_element_to_store(element_id, new_element)
 
 
             return {'id':element_id,'entry':new_element}
@@ -196,18 +212,8 @@ try:
             print e
             return False
 
-    @app.post('/propagate/<element_id:int>')
-    def propagation_received(element_id):
-        try:
-            elementToAdd = request.forms.get("entry")
-            add_new_element_to_store(element_id, elementToAdd)
-            return {'id':element_id,'entry':elementToAdd}
-        except Exception as e:
-            print e
-            return False
-
-    @app.post('/propagate/<action:int>/<element_id:int>')
-    def propagation_action_received(action, element_id):
+    @app.post('/propagate/<action:int>/<element_id:int>/')
+    def propagation_received(action, element_id):
         #print ("in /propagate/<action>/<element_id>") #debugtool
         try:
             elementToModify = request.forms.get("entry")
@@ -228,30 +234,43 @@ try:
 	        #action is either 0 for modify or 1 for delete
 
     #-------------------------------------------------------------------------------------------------------
-    @app.post('/election/<action:int>')
+    @app.post('/election/<action:int>/')
     def start_election(action):
-        global leader_id, amount_of_vessels
+        global amount_of_nodes
+        print ("in election/action/")#debugtool
+        #payload is a dict and is formated: {"entry":{0:1000, 1:23,...}, "starter_id": <int>}
         try:
-            candidates = request.forms.get("entry")
-            #dict=  {"entry":{0:1000, 1:23,...}}
+            starter_id= request.forms.get("starter_id")
+            print(str(starter_id))#debugtool
 
+            #ast.literal_eval is a safer verision of eval
+            candidates = ast.literal_eval(request.forms.get('entry'))
+            print(candidates)#debugtool
+
+            print(amount_of_nodes)
             #if we have not added our id and priority to the candidates, then do so and propegate to the next node
-            #If this is true, we are in stage 0 of election = add yourself to list
             if not (node_id in candidates):
-                leader_id = None
-                path = '/election/'+ '0'
+                #the path
+                path = '/election/0/'
 
-                tmpdict = dict()
-                tmpdict = candidates.update({node_id: leader_priority})
-                #
-                next_ip = '10.1.0.{}'.format(str(node_id % amount_of_vessels)+1)
+                #update candidates with own id and priority
+                candidates.update({node_id: priority})
+                print(candidates)#debugtool
+
+                #create the new dictonary (payload)
+                tmpdict = {"entry": str(candidates), "starter_id":starter_id}
+
+                #send to next node
+                next_ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
                 thread = Thread(target=contact_vessel, args=(next_ip,path,tmpdict,'POST') )
                 thread.daemon=True
                 thread.start()
-            #Else we are in staage 1 of election = checking and assigning leader_id
             else:
+                print("before if")#debugtool
                 #If this is not true, we have passed stage 1, and is therefore done
-                if leader_id not None:
+                #BREAKS HERE
+                if leader_id == None:
+                    print("passed if")#debugtool
                     highest_key = 0
                     highest_value = 0
 
@@ -259,15 +278,18 @@ try:
                         if value > highest_value:
                             highest_key = key
                             highest_value = value
-
+                    print("before leader_id assignment")#debugtool
                     leader_id = highest_key
+                    print("after leader_id assignment")#debugtool
 
-                    path = '/election/'+ '1'
-
-                    next_ip = '10.1.0.{}'.format(str(node_id % amount_of_vessels)+1)
-                    thread = Thread(target=contact_vessel, args=(next_ip,path,candidates,'POST') )
+                    path = '/election/1/'
+                    next_ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
+                    tmpdict = {"entry": str(candidates), "starter_id":starter_id}
+                    thread = Thread(target=contact_vessel, args=(next_ip,path,tmpdict,'POST') )
                     thread.daemon=True
                     thread.start()
+
+                #if node_id == starter_id election is over
 
             return {'id':node_id,'entry':candidates}
         except Exception as e:
@@ -282,7 +304,7 @@ try:
         try:
             #Redundancy check, just in case
             if check_leader():
-        	    #print ("in /board (post)") #debugtool
+                #print ("in /board (post)") #debugtool
 
                 #Calls on help function
                 nrPosts = new_post_number()
@@ -294,9 +316,9 @@ try:
                 #Propagate the update to all the other vessels
                 path = '/board/'+ str(nrPosts) +'/'
                 tempdict = {"entry" : new_element}
-         	    thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
-        	    thread.daemon=True
-        	    thread.start()
+                thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
+                thread.daemon=True
+                thread.start()
             else:
                 print("Leader Not Found")
 
@@ -334,7 +356,6 @@ try:
     	except Exception as e:
             print e
             return False
-
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
     # ------------------------------------------------------------------------------------------------------
@@ -342,7 +363,7 @@ try:
     # a single example (index) should be done for get, and one for post Give it to the students
     # Execute the code
     def main():
-        global vessel_list, node_id, app, amount_of_vessels
+        global vessel_list, node_id, app, amount_of_nodes
 
         port = 80
         parser = argparse.ArgumentParser(description='Your own implementation of the distributed blackboard')
@@ -350,7 +371,7 @@ try:
         parser.add_argument('--vessels', nargs='?', dest='nbv', default=1, type=int, help='The total number of vessels present in the system')
         args = parser.parse_args()
         node_id = args.nid
-        amount_of_vessels = args.nbv
+        amount_of_nodes = max(0,args.nbv-1) #for the election, it is required to know the amount of nodes
         vessel_list = dict()
         for i in range(1, args.nbv):
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
