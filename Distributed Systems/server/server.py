@@ -21,6 +21,7 @@ from bottle import Bottle, run, request, template
 import requests
 
 
+
 # ------------------------------------------------------------------------------------------------------
 try:
     app = Bottle()
@@ -80,17 +81,22 @@ try:
         try:
             #if we don't have a leader start an election
             if leader_id == None:
-                #payload
-                dict = {"entry": str({node_id: priority}), "starter_id":node_id}
-
-                print (dict["entry"]) #debugtool
                 #dedicated path for the election and the next node's ip
                 path = '/election/0/'
                 ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
+                dict = {"entry": str({node_id: priority}), "starter_id":node_id}
+                #print (dict["entry"]) #debugtool
+
                 return contact_vessel(ip, path, dict, 'POST')
+                #thread = Thread(target=contact_vessel, args=(ip, path, dict,'POST') )
+                #thread.daemon=True
+                #thread.start()
                 #res = requests.post('http://{}{}'.format(node_id, path), data=dictus)
 
-            success = True
+                #waiting_counter = 0
+
+
+                success = True
         except Exception as e:
             print e
         return success
@@ -153,10 +159,10 @@ try:
         global board, node_id
         try:
     	    #print ("in /board (post)") #debugtool
+
             print (check_leader()) #debugtool
+
             print(leader_id) #debugtool
-
-
             #Calls on help function
             nrPosts = new_post_number()
 
@@ -237,6 +243,7 @@ try:
     @app.post('/election/<action:int>/')
     def start_election(action):
         global amount_of_nodes
+        global leader_id
         print ("in election/action/")#debugtool
         #payload is a dict and is formated: {"entry":{0:1000, 1:23,...}, "starter_id": <int>}
         try:
@@ -246,8 +253,10 @@ try:
             #ast.literal_eval is a safer verision of eval
             candidates = ast.literal_eval(request.forms.get('entry'))
             print(candidates)#debugtool
-
+            print("!!!!!Above is Proof of dictionary!!!!!")
             print(amount_of_nodes)
+            print(node_id)
+
             #if we have not added our id and priority to the candidates, then do so and propegate to the next node
             if not (node_id in candidates):
                 #the path
@@ -269,6 +278,7 @@ try:
                 print("before if")#debugtool
                 #If this is not true, we have passed stage 1, and is therefore done
                 #BREAKS HERE
+                print (leader_id)
                 if leader_id == None:
                     print("passed if")#debugtool
                     highest_key = 0
@@ -281,6 +291,7 @@ try:
                     print("before leader_id assignment")#debugtool
                     leader_id = highest_key
                     print("after leader_id assignment")#debugtool
+                    print(leader_id)
 
                     path = '/election/1/'
                     next_ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
@@ -304,6 +315,7 @@ try:
         try:
             #Redundancy check, just in case
             if check_leader():
+
                 #print ("in /board (post)") #debugtool
 
                 #Calls on help function
