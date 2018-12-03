@@ -170,7 +170,7 @@ try:
             #add_new_element_to_store(nrPosts, new_element)
 
             #we create a timer for the actual message to the leader and let it wait in the background
-            timer = Timer(0.1, client_add_received_HELPER, [new_element])
+            timer = Timer(2, client_add_received_HELPER, [new_element])
             timer.daemon=True
             timer.start()
 
@@ -180,6 +180,7 @@ try:
             print e
         return False
 
+    # ------------------------------------------------------------------------------------------------------
     def client_add_received_HELPER(element):
         try:
             #dynamic time adding
@@ -211,32 +212,33 @@ try:
             new_element = request.forms.get("entry")
             action = request.forms.get("delete")
 
-            #Check if it has a comand
-            if (action != None):
+            #Propagate it to the leader
+            leader_ip = '10.1.0.{}'.format(leader_id)
+            path = '/leader/'+ str(action) +'/' + str(element_id) +'/'
+            tempdict = {"entry" : new_element}
 
-                #Do the change localy
-                if (action == '1'):
-                    delete_element_from_store(element_id)
-                else:
-                    modify_element_in_store(element_id, new_element)
-
-                #Propagate it to the other vessels
-                path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
-                tempdict = {"entry" : new_element}
-                thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
-                thread.daemon=True
-                thread.start()
-            else:
-                add_new_element_to_store(element_id, new_element)
-
-
+            thread = Thread(target=contact_vessel, args=(leader_ip,path,tempdict,'POST') )
+            thread.daemon=True
+            thread.start()
             return {'id':element_id,'entry':new_element}
     	except Exception as e:
             print e
             return False
 
-    @app.post('/propagate/<action:int>/<element_id:int>/')
-    def propagation_received(action, element_id):
+    # ------------------------------------------------------------------------------------------------------
+    @app.post('/propagate/<element_id:int>')
+    def propagation_received(element_id):
+        try:
+            elementToAdd = request.forms.get("entry")
+            add_new_element_to_store(element_id, elementToAdd)
+            return {'id':element_id,'entry':elementToAdd}
+        except Exception as e:
+            print e
+            return False
+
+    # ------------------------------------------------------------------------------------------------------
+    @app.post('/propagate/<action:int>/<element_id:int>')
+    def propagation_action_received(action, element_id):
         #print ("in /propagate/<action>/<element_id>") #debugtool
         try:
             elementToModify = request.forms.get("entry")
@@ -244,18 +246,17 @@ try:
             #print(elementToModify) #debugtool
 
             #Check to see the comand of the action
-
-            if action == 0:
+            #action is either 0 for modify or 1 for delete
+            if (action == 0):
                 modify_element_in_store(element_id,elementToModify)
-            elif action == 1:
+            else:
                 delete_element_from_store(element_id)
 
             return {'id':element_id,'entry':elementToModify}
+
         except Exception as e:
             print e
             return False
-	        #action is either 0 for modify or 1 for delete
-
     #-------------------------------------------------------------------------------------------------------
     @app.post('/election/<action:int>/')
     def start_election(action):
@@ -294,7 +295,7 @@ try:
             else:
                 print("before if")#debugtool
                 #If this is not true, we have passed stage 1, and is therefore done
-    
+
                 print (leader_id)
                 if leader_id == None:
                     print("passed if")#debugtool
@@ -331,49 +332,44 @@ try:
         global board, node_id
         try:
             #Redundancy check, just in case
-            if check_leader():
+            #print ("in /board (post)") #debugtool
 
-                #print ("in /board (post)") #debugtool
+            #Calls on help function
+            nrPosts = new_post_number()
 
-                #Calls on help function
-                nrPosts = new_post_number()
+            #Get the entry and add it to local board
+            new_element = request.forms.get('entry')
+            add_new_element_to_store(nrPosts, new_element)
 
-                #Get the entry and add it to local board
-                new_element = request.forms.get('entry')
-                add_new_element_to_store(nrPosts, new_element)
+            #Propagate the update to all the other vessels
+            path = '/propagate/'+ str(nrPosts)
+            tempdict = {"entry" : new_element}
+            thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
+            thread.daemon=True
+            thread.start()
+            return {'id':nrPosts,'entry':new_element}
 
-                #Propagate the update to all the other vessels
-                path = '/board/'+ str(nrPosts) +'/'
-                tempdict = {"entry" : new_element}
-                thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
-                thread.daemon=True
-                thread.start()
-            else:
-                print("Leader Not Found")
 
-            return {'id':element_id,'entry':new_element}
         except Exception as e:
             print e
-        return False
+            return False
 
     #Only for Modify and Delete, depending on Action value
-    @app.post('/leader/<action:int>/<element_id:int>')
-    def propagate_action_to_leader():
+    @app.post('/leader/<action:int>/<element_id:int>/')
+    def propagate_action_to_leader(action, element_id):
         global board, node_id
     	try:
             #print ("in /board/<element_id:int>/") #debugtool
-
             #Get the new element, and the comand (optional)
             new_element = request.forms.get("entry")
-            action = request.forms.get("delete")
-
             #Check if it has a comand
             #Do the change localy
-            if (action == '1'):
+            if (action == 1):
                 delete_element_from_store(element_id)
             else:
                 modify_element_in_store(element_id, new_element)
 
+            print(action)
             #Propagate it to the other vessels
             path = '/propagate/'+ str(action) +'/' + str(element_id)
             tempdict = {"entry" : new_element}
@@ -382,7 +378,8 @@ try:
             thread.start()
 
             return {'id':element_id,'entry':new_element}
-    	except Exception as e:
+
+        except Exception as e:
             print e
             return False
     # ------------------------------------------------------------------------------------------------------
