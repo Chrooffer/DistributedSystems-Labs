@@ -13,6 +13,7 @@ import json
 import argparse
 import ast
 from threading import Thread
+from threading import Timer
 from time import sleep
 import copy
 from random import *
@@ -95,8 +96,7 @@ try:
 
                 #waiting_counter = 0
 
-
-                success = True
+            success = True
         except Exception as e:
             print e
         return success
@@ -159,8 +159,7 @@ try:
         global board, node_id
         try:
     	    #print ("in /board (post)") #debugtool
-
-            print (check_leader()) #debugtool
+            check_leader()
 
             print(leader_id) #debugtool
             #Calls on help function
@@ -168,20 +167,38 @@ try:
 
             #Get the entry and add it to local board
             new_element = request.forms.get('entry')
-            add_new_element_to_store(nrPosts, new_element)
+            #add_new_element_to_store(nrPosts, new_element)
 
-            #Propagate the update to all the other vessels
-            path = '/board/'+ str(nrPosts) +'/'
-            tempdict = {"entry" : new_element}
-     	    thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
-    	    thread.daemon=True
-    	    thread.start()
+            #we create a timer for the actual message to the leader and let it wait in the background
+            timer = Timer(0.1, client_add_received_HELPER, [new_element])
+            timer.daemon=True
+            timer.start()
+
 
             return {'id':node_id,'entry':new_element}
         except Exception as e:
             print e
         return False
 
+    def client_add_received_HELPER(element):
+        try:
+            #dynamic time adding
+            if leader_id == None:
+                threader = Timer(1, client_add_received_HELPER, [element])
+                threader.daemon=True
+                threader.start()
+            else:
+                path = '/leader'
+                ip = '10.1.0.{}'.format(str(leader_id))
+                tempdict = {"entry": str(element)}
+                #print (dict["entry"]) #debugtool
+                thread = Thread(target=contact_vessel, args=(ip,path,tempdict,'POST') )
+                thread.daemon=True
+                thread.start()
+                return True
+        except Exception as e:
+            print e
+        return False
 
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board/<element_id:int>/')
@@ -277,7 +294,7 @@ try:
             else:
                 print("before if")#debugtool
                 #If this is not true, we have passed stage 1, and is therefore done
-                #BREAKS HERE
+    
                 print (leader_id)
                 if leader_id == None:
                     print("passed if")#debugtool
