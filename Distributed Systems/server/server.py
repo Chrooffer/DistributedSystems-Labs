@@ -300,6 +300,7 @@ try:
 
                 print ("The leader's ID (before assignment) is: " + str(leader_id))#debugtool
                 #If this is not true, we have passed stage 1, and is therefore done
+                #TODO talk about this designchoice
                 if leader_id == None:
                     highest_key = 0
                     highest_value = 0
@@ -325,23 +326,21 @@ try:
             print e
             return False
 
-    #Only for making a Post
+    #Leader handeling of addnig new entries to the board
     @app.post('/leader')
     def propagate_post_to_leader():
 
         global board, node_id
         try:
-            #Redundancy check, just in case
-            #print ("in /board (post)") #debugtool
 
-            #Calls on help function
+            #Calls on help function to generate the new element_id
             nrPosts = new_post_number()
 
             #Get the entry and add it to local board
             new_element = request.forms.get('entry')
             add_new_element_to_store(nrPosts, new_element)
 
-            #Propagate the update to all the other vessels
+            #propagate the update to all the other vessels
             path = '/propagate/'+ str(nrPosts)
             tempdict = {"entry" : new_element}
             thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
@@ -354,23 +353,25 @@ try:
             print e
             return False
 
-    #Only for Modify and Delete, depending on Action value
+    #Leader handeling of Modify and Delete, depending on Action value
     @app.post('/leader/<action:int>/<element_id:int>/')
     def propagate_action_to_leader(action, element_id):
         global board, node_id
         try:
-            #print ("in /board/<element_id:int>/") #debugtool
+
+
             #Get the new element, and the comand (optional)
             new_element = request.forms.get("entry")
-            #Check if it has a comand
-            #Do the change localy
+
+            #Check which comand and change it localy
             if (action == 1):
                 delete_element_from_store(element_id)
             else:
                 modify_element_in_store(element_id, new_element)
 
-            print(action)
-            #Propagate it to the other vessels
+            #print(action)#debugtool
+
+            #propagate it to the other vessels
             path = '/propagate/'+ str(action) +'/' + str(element_id)
             tempdict = {"entry" : new_element}
             thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
