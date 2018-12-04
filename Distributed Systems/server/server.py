@@ -165,25 +165,30 @@ try:
             new_element = request.forms.get('entry')
 
             #we create a timer (seconds) for the actual message to the leader and let it wait in the background
-            #for the election, when the time is up the help method is called with the arg; new_element
-            timer = Timer(2, client_add_received_HELPER, [new_element])
+            #for the possible election, when the time is up the help method is called with the arg; new_element
+            timer = Timer(0.1, client_add_received_HELPER, [new_element, 0])
             timer.daemon=True
             timer.start()
 
-            return {'id':node_id,'entry':new_element}
+            #time.sleep(5)#debugtool (to check if the helper is running concurently and delays properly)
+
+            return {'entry':new_element}
         except Exception as e:
             print e
         return False
 
     # ------------------------------------------------------------------------------------------------------
-    def client_add_received_HELPER(element):
+    def client_add_received_HELPER(element, itterations):
         try:
             #dynamic time adding if the leader is unknown (the election is still ongoing)
             if leader_id == None:
-                #print("Waiting for election to finish")#debugtool
-                threader = Timer(2, client_add_received_HELPER, [element])
-                threader.daemon=True
-                threader.start()
+                if itterations <10:
+                    print("Waiting for election to finish")#debugtool
+                    threader = Timer(3, client_add_received_HELPER, [element, (itterations+1)])
+                    threader.daemon=True
+                    threader.start()
+                else:
+                    create_election()
             else:
                 #if we know the leader we send the message to it
                 path = '/leader'
@@ -212,21 +217,45 @@ try:
             new_element = request.forms.get("entry")
             action = request.forms.get("delete")
 
-            #the ip and path of the leader and the palyoad that is to be sent
-            leader_ip = '10.1.0.{}'.format(leader_id)
-            path = '/leader/'+ str(action) +'/' + str(element_id) +'/'
-            tempdict = {"entry" : new_element}
+            #we create a timer (seconds) for the actual message to the leader and let it wait in the background
+            #for the possible election, when the time is up the help method is called with the arg; new_element
+            timer = Timer(0.1, client_action_received_HELPER, [new_element, element_id, action, 0])
+            timer.daemon=True
+            timer.start()
 
-            #propagate it to the leader
-            thread = Thread(target=contact_vessel, args=(leader_ip,path,tempdict,'POST') )
-            thread.daemon=True
-            thread.start()
+            #time.sleep(5)#debugtool (to check if the helper is running concurently and delays properly)
 
             return {'id':element_id,'entry':new_element}
         except Exception as e:
             print e
             return False
+    # ------------------------------------------------------------------------------------------------------
+    #helpfunction for posts made to "/board/<element_id:int>/"
+    def client_action_received_HELPER(element, element_id, action, itterations):
+        try:
+            #dynamic time adding if the leader is unknown (the election is still ongoing)
+            if leader_id == None:
+                if itterations <10:
+                    print("Waiting for election to finish")#debugtool
+                    threader = Timer(3, client_add_received_HELPER, [element, element_id, action, (itterations+1)])
+                    threader.daemon=True
+                    threader.start()
+                else:
+                    create_election()
+            else:
+                #if we know the leader send the message to it
+                leader_ip = '10.1.0.{}'.format(leader_id)
+                path = '/leader/'+ str(action) +'/' + str(element_id) +'/'
+                tempdict = {"entry" : element}
 
+                #propagate it to the leader
+                thread = Thread(target=contact_vessel, args=(leader_ip,path,tempdict,'POST') )
+                thread.daemon=True
+                thread.start()
+                return True
+        except Exception as e:
+            print e
+        return False
     # ------------------------------------------------------------------------------------------------------
     @app.post('/propagate/<element_id:int>')
     def propagation_received(element_id):
@@ -274,13 +303,12 @@ try:
             #inorder to stop code injections from executing
             candidates = ast.literal_eval(request.forms.get('entry'))
 
-            #print(candidates)#debugtool
-            #print(amount_of_nodes)#debugtool
-            #print(node_id)#debugtool
-
             #if we have not added our id and priority to the candidates, then do so and propegate to the next node
             #since we have not yet added ourselfs to the candidates we must be on the first itteration of the election
             if not (node_id in candidates):
+                #Clear the current leader, (since we are electing a new one)
+                leader_id = None
+
                 #the path for the continuation
                 path = '/election'
 
@@ -299,8 +327,9 @@ try:
             else:
 
                 print ("The leader's ID (before assignment) is: " + str(leader_id))#debugtool
-                #If this is not true, we have passed stage 1, and is therefore done
-                #TODO talk about this designchoice
+                #If this is not true, we have passed stage 1, and is therefore
+                # done (this works because leader_id was cleared in the first loop of
+                # the election process)
                 if leader_id == None:
                     highest_key = 0
                     highest_value = 0
@@ -321,6 +350,10 @@ try:
                     thread.daemon=True
                     thread.start()
 
+                else:
+                    #if we already knew our leader before checking the candidates, we must
+                    #already have done so and so has every one else, thus we can terminate the election
+                    print ("End election, winner: " + str(leader_id))
             return {'id':node_id,'entry':candidates}
         except Exception as e:
             print e
