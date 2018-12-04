@@ -80,20 +80,20 @@ try:
         try:
             #only if we don't have a leader start an election
             if leader_id == None:
+
+                print("Createing an election")#debug tool
+
                 #path for the election and the next node's ip
                 path = '/election/0/'
                 ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
 
                 #our payload dictonary
-                dict = {"entry": str({node_id: priority}), "starter_id":node_id}
+                dict = {"entry": str({node_id: priority})}
 
                 #return contact_vessel(ip, path, dict, 'POST')
                 thread = Thread(target=contact_vessel, args=(ip, path, dict,'POST') )
                 thread.daemon=True
                 thread.start()
-                #res = requests.post('http://{}{}'.format(node_id, path), data=dictus)
-
-                #waiting_counter = 0
 
             success = True
         except Exception as e:
@@ -202,20 +202,24 @@ try:
     def client_action_received(element_id):
     	global board, node_id
     	try:
-            #print ("in /board/<element_id:int>/") #debugtool
+            #if this node doesn't have a leader, create an election
+            if leader_id == None:
+                create_election()
 
-            #Get the new element, and the comand (optional)
+            #get the new element, and the action (optional)
             new_element = request.forms.get("entry")
             action = request.forms.get("delete")
 
-            #Propagate it to the leader
+            #the ip and path of the leader and the palyoad that is to be sent
             leader_ip = '10.1.0.{}'.format(leader_id)
             path = '/leader/'+ str(action) +'/' + str(element_id) +'/'
             tempdict = {"entry" : new_element}
 
+            #propagate it to the leader
             thread = Thread(target=contact_vessel, args=(leader_ip,path,tempdict,'POST') )
             thread.daemon=True
             thread.start()
+
             return {'id':element_id,'entry':new_element}
     	except Exception as e:
             print e
@@ -225,6 +229,7 @@ try:
     @app.post('/propagate/<element_id:int>')
     def propagation_received(element_id):
         try:
+            #add element to board
             elementToAdd = request.forms.get("entry")
             add_new_element_to_store(element_id, elementToAdd)
             return {'id':element_id,'entry':elementToAdd}
@@ -241,7 +246,6 @@ try:
             #print(element_id) #debugtool
             #print(elementToModify) #debugtool
 
-            #Check to see the comand of the action
             #action is either 0 for modify or 1 for delete
             if (action == 0):
                 modify_element_in_store(element_id,elementToModify)
@@ -259,10 +263,8 @@ try:
         global amount_of_nodes
         global leader_id
         print ("in election/action/")#debugtool
-        #payload is a dict and is formated: {"entry":{0:1000, 1:23,...}, "starter_id": <int>}
+        #payload is a dict and is formated: {"entry":str({0:1000, 1:23,...})}
         try:
-            starter_id= request.forms.get("starter_id")
-            print(str(starter_id))#debugtool
 
             #ast.literal_eval is a safer verision of eval
             candidates = ast.literal_eval(request.forms.get('entry'))
@@ -281,7 +283,7 @@ try:
                 print(candidates)#debugtool
 
                 #create the new dictonary (payload)
-                tmpdict = {"entry": str(candidates), "starter_id":starter_id}
+                tmpdict = {"entry": str(candidates)}
 
                 #send to next node
                 next_ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
@@ -309,12 +311,10 @@ try:
 
                     path = '/election/1/'
                     next_ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
-                    tmpdict = {"entry": str(candidates), "starter_id":starter_id}
+                    tmpdict = {"entry": str(candidates)}
                     thread = Thread(target=contact_vessel, args=(next_ip,path,tmpdict,'POST') )
                     thread.daemon=True
                     thread.start()
-
-                #if node_id == starter_id election is over
 
             return {'id':node_id,'entry':candidates}
         except Exception as e:
