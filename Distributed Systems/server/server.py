@@ -39,7 +39,6 @@ try:
         success = False
         try:
             #print ("in add_new_element_to_store")#debugtool
-
             board.update({entry_sequence: element})
             success = True
         except Exception as e:
@@ -51,7 +50,6 @@ try:
         success = False
         try:
             #print ("in modify_element_in_store") #debugtool
-
             board[entry_sequence]=modified_element
             success = True
         except Exception as e:
@@ -76,22 +74,23 @@ try:
             i += 1
         return i
 
-    def check_leader():
+    def create_election():
         global node_id
         success = False
         try:
-            #if we don't have a leader start an election
+            #only if we don't have a leader start an election
             if leader_id == None:
-                #dedicated path for the election and the next node's ip
+                #path for the election and the next node's ip
                 path = '/election/0/'
                 ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
-                dict = {"entry": str({node_id: priority}), "starter_id":node_id}
-                #print (dict["entry"]) #debugtool
 
-                return contact_vessel(ip, path, dict, 'POST')
-                #thread = Thread(target=contact_vessel, args=(ip, path, dict,'POST') )
-                #thread.daemon=True
-                #thread.start()
+                #our payload dictonary
+                dict = {"entry": str({node_id: priority}), "starter_id":node_id}
+
+                #return contact_vessel(ip, path, dict, 'POST')
+                thread = Thread(target=contact_vessel, args=(ip, path, dict,'POST') )
+                thread.daemon=True
+                thread.start()
                 #res = requests.post('http://{}{}'.format(node_id, path), data=dictus)
 
                 #waiting_counter = 0
@@ -158,22 +157,18 @@ try:
         Called directly when a user is doing a POST request on /board'''
         global board, node_id
         try:
-    	    #print ("in /board (post)") #debugtool
-            check_leader()
+    	    #if this node doesn't have a leader, create an election
+            if leader_id == None:
+                create_election()
 
-            print(leader_id) #debugtool
-            #Calls on help function
-            nrPosts = new_post_number()
-
-            #Get the entry and add it to local board
+            #get the entry that is going to be added to the board
             new_element = request.forms.get('entry')
-            #add_new_element_to_store(nrPosts, new_element)
 
-            #we create a timer for the actual message to the leader and let it wait in the background
+            #we create a timer (seconds) for the actual message to the leader and let it wait in the background
+            #for the election, when the time is up the help method is called with the arg; new_element
             timer = Timer(2, client_add_received_HELPER, [new_element])
             timer.daemon=True
             timer.start()
-
 
             return {'id':node_id,'entry':new_element}
         except Exception as e:
@@ -185,7 +180,8 @@ try:
         try:
             #dynamic time adding
             if leader_id == None:
-                threader = Timer(1, client_add_received_HELPER, [element])
+                print("in delay")#debugtool
+                threader = Timer(2, client_add_received_HELPER, [element])
                 threader.daemon=True
                 threader.start()
             else:
