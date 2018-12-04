@@ -84,10 +84,10 @@ try:
                 print("Createing an election")#debug tool
 
                 #path for the election and the next node's ip
-                path = '/election/0/'
+                path = '/election'
                 ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
 
-                #our payload dictonary
+                #the payload dictonary
                 dict = {"entry": str({node_id: priority})}
 
                 #return contact_vessel(ip, path, dict, 'POST')
@@ -157,7 +157,7 @@ try:
         Called directly when a user is doing a POST request on /board'''
         global board, node_id
         try:
-    	    #if this node doesn't have a leader, create an election
+            #if this node doesn't have a leader, create an election
             if leader_id == None:
                 create_election()
 
@@ -178,17 +178,19 @@ try:
     # ------------------------------------------------------------------------------------------------------
     def client_add_received_HELPER(element):
         try:
-            #dynamic time adding
+            #dynamic time adding if the leader is unknown (the election is still ongoing)
             if leader_id == None:
-                print("in delay")#debugtool
+                #print("Waiting for election to finish")#debugtool
                 threader = Timer(2, client_add_received_HELPER, [element])
                 threader.daemon=True
                 threader.start()
             else:
+                #if we know the leader we send the message to it
                 path = '/leader'
                 ip = '10.1.0.{}'.format(str(leader_id))
                 tempdict = {"entry": str(element)}
-                #print (dict["entry"]) #debugtool
+
+                #propegate to leader
                 thread = Thread(target=contact_vessel, args=(ip,path,tempdict,'POST') )
                 thread.daemon=True
                 thread.start()
@@ -200,8 +202,8 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
-    	global board, node_id
-    	try:
+        global board, node_id
+        try:
             #if this node doesn't have a leader, create an election
             if leader_id == None:
                 create_election()
@@ -221,7 +223,7 @@ try:
             thread.start()
 
             return {'id':element_id,'entry':new_element}
-    	except Exception as e:
+        except Exception as e:
             print e
             return False
 
@@ -232,6 +234,7 @@ try:
             #add element to board
             elementToAdd = request.forms.get("entry")
             add_new_element_to_store(element_id, elementToAdd)
+
             return {'id':element_id,'entry':elementToAdd}
         except Exception as e:
             print e
@@ -253,30 +256,33 @@ try:
                 delete_element_from_store(element_id)
 
             return {'id':element_id,'entry':elementToModify}
-
         except Exception as e:
             print e
             return False
     #-------------------------------------------------------------------------------------------------------
-    @app.post('/election/<action:int>/')
-    def start_election(action):
+    @app.post('/election')
+    def start_election():
         global amount_of_nodes
         global leader_id
-        print ("in election/action/")#debugtool
+        print ("In election cycle")#debugtool
         #payload is a dict and is formated: {"entry":str({0:1000, 1:23,...})}
         try:
-
-            #ast.literal_eval is a safer verision of eval
+            #the dictionary containing the candidates are sent as a string and thus
+            #needs to be converted into a dict again, here via the use of a safe version of
+            #the built in "eval" function (ast.literal_eval only accepts a small subset
+            #of Python literals namely; strings, numbers, tuples, lists, dicts, booleans)
+            #inorder to stop code injections from executing
             candidates = ast.literal_eval(request.forms.get('entry'))
-            print(candidates)#debugtool
-            print("!!!!!Above is Proof of dictionary!!!!!")
-            print(amount_of_nodes)
-            print(node_id)
+
+            #print(candidates)#debugtool
+            #print(amount_of_nodes)#debugtool
+            #print(node_id)#debugtool
 
             #if we have not added our id and priority to the candidates, then do so and propegate to the next node
+            #since we have not yet added ourselfs to the candidates we must be on the first itteration of the election
             if not (node_id in candidates):
-                #the path
-                path = '/election/0/'
+                #the path for the continuation
+                path = '/election'
 
                 #update candidates with own id and priority
                 candidates.update({node_id: priority})
@@ -291,25 +297,23 @@ try:
                 thread.daemon=True
                 thread.start()
             else:
-                print("before if")#debugtool
-                #If this is not true, we have passed stage 1, and is therefore done
 
-                print (leader_id)
+                print ("The leader's ID (before assignment) is: " + str(leader_id))#debugtool
+                #If this is not true, we have passed stage 1, and is therefore done
                 if leader_id == None:
-                    print("passed if")#debugtool
                     highest_key = 0
                     highest_value = 0
 
+                    #Check to see which id has the highest value, let the corresponding id become the leader
                     for key,value in candidates.items():
                         if value > highest_value:
                             highest_key = key
                             highest_value = value
-                    print("before leader_id assignment")#debugtool
                     leader_id = highest_key
-                    print("after leader_id assignment")#debugtool
-                    print(leader_id)
+                    print ("The leader's ID (after assignment) is: " + str(leader_id))#debugtool
 
-                    path = '/election/1/'
+                    #send to the next node
+                    path = '/election'
                     next_ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
                     tmpdict = {"entry": str(candidates)}
                     thread = Thread(target=contact_vessel, args=(next_ip,path,tmpdict,'POST') )
@@ -354,7 +358,7 @@ try:
     @app.post('/leader/<action:int>/<element_id:int>/')
     def propagate_action_to_leader(action, element_id):
         global board, node_id
-    	try:
+        try:
             #print ("in /board/<element_id:int>/") #debugtool
             #Get the new element, and the comand (optional)
             new_element = request.forms.get("entry")
