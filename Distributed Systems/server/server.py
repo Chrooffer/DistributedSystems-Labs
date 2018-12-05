@@ -78,12 +78,10 @@ try:
         global node_id
         success = False
         try:
-            #only if we don't have a leader start an election
-
             #when we create an election we reset the leader
             leader_id = None
 
-            print("Createing an election")#debug tool
+            print("Creating an election")#debug tool
 
             #path for the election and the next node's ip
             path = '/election'
