@@ -122,6 +122,7 @@ try:
             if res.status_code == 200:
                 success = True
         except Exception as e:
+            create_election()
             print e
         return success
 
@@ -195,7 +196,7 @@ try:
             else:
                 #if we know the leader we send the message to it
                 path = '/leader'
-                ip = '10.1.0.{}'.format(str(leader_id))
+                leader_ip = '10.1.0.{}'.format(str(leader_id))
                 tempdict = {"entry": str(element)}
 
                 #propegate to leader
@@ -204,7 +205,6 @@ try:
                 thread.start()
                 return True
         except Exception as e:
-            create_election()
             print e
         return False
 
