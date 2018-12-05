@@ -79,21 +79,23 @@ try:
         success = False
         try:
             #only if we don't have a leader start an election
-            if leader_id == None:
 
-                print("Createing an election")#debug tool
+            #when we create an election we reset the leader
+            leader_id = None
 
-                #path for the election and the next node's ip
-                path = '/election'
-                ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
+            print("Createing an election")#debug tool
 
-                #the payload dictonary
-                dict = {"entry": str({node_id: priority})}
+            #path for the election and the next node's ip
+            path = '/election'
+            ip = '10.1.0.{}'.format(str((node_id % amount_of_nodes)+1))
 
-                #return contact_vessel(ip, path, dict, 'POST')
-                thread = Thread(target=contact_vessel, args=(ip, path, dict,'POST') )
-                thread.daemon=True
-                thread.start()
+            #the payload dictonary
+            dict = {"entry": str({node_id: priority})}
+
+            #return contact_vessel(ip, path, dict, 'POST')
+            thread = Thread(target=contact_vessel, args=(ip, path, dict,'POST') )
+            thread.daemon=True
+            thread.start()
 
             success = True
         except Exception as e:
@@ -143,13 +145,13 @@ try:
     def index():
         #print ("in / (route)")#debugtool
         global board, node_id
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='Group 97')
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=board.iteritems(), members_name_string='Group 97', leader_id_string = str(leader_id), random_number_string= str(priority))
 
     @app.get('/board')
     def get_board():
         global board, node_id
         #print ("in /board (get)") #debugtool
-        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()))
+        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=board.iteritems())
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board')
     def client_add_received():
@@ -165,7 +167,7 @@ try:
             new_element = request.forms.get('entry')
 
             #we create a timer (seconds) for the actual message to the leader and let it wait in the background
-            #for the possible election, when the time is up the help method is called with the arg; new_element
+            #for the possible election. When the time is up, the help method is called with the arg; new_element
             timer = Timer(0.1, client_add_received_HELPER, [new_element, 0])
             timer.daemon=True
             timer.start()
@@ -188,6 +190,7 @@ try:
                     threader.daemon=True
                     threader.start()
                 else:
+                    #something went wrong with the election, make a new election
                     create_election()
             else:
                 #if we know the leader we send the message to it
@@ -201,6 +204,7 @@ try:
                 thread.start()
                 return True
         except Exception as e:
+            create_election()
             print e
         return False
 
@@ -218,7 +222,7 @@ try:
             action = request.forms.get("delete")
 
             #we create a timer (seconds) for the actual message to the leader and let it wait in the background
-            #for the possible election, when the time is up the help method is called with the arg; new_element
+            #for the possible election. When the time is up, the help method is called with the arg; new_element
             timer = Timer(0.1, client_action_received_HELPER, [new_element, element_id, action, 0])
             timer.daemon=True
             timer.start()
@@ -241,6 +245,7 @@ try:
                     threader.daemon=True
                     threader.start()
                 else:
+                    #something went wrong with the election, make a new election
                     create_election()
             else:
                 #if we know the leader send the message to it
@@ -340,7 +345,7 @@ try:
                             highest_key = key
                             highest_value = value
                     leader_id = highest_key
-                    print ("The leader's ID (after assignment) is: " + str(leader_id))#debugtool
+                    print ("The leader's ID is: " + str(leader_id))#debugtool
 
                     #send to the next node
                     path = '/election'
