@@ -122,7 +122,6 @@ try:
             if res.status_code == 200:
                 success = True
         except Exception as e:
-            create_election()
             print e
         return success
 
@@ -200,7 +199,7 @@ try:
                 tempdict = {"entry": str(element)}
 
                 #propegate to leader
-                thread = Thread(target=contact_vessel, args=(ip,path,tempdict,'POST') )
+                thread = Thread(target=contact_vessel, args=(leader_ip,path,tempdict,'POST') )
                 thread.daemon=True
                 thread.start()
                 return True
