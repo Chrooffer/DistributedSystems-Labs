@@ -24,6 +24,7 @@ try:
     app = Bottle()
     board = {0:"nothing"}
 
+
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
     # Should nopt be given to the student
