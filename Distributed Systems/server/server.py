@@ -23,6 +23,7 @@ import requests
 try:
     app = Bottle()
     board = {0:"nothing"}
+    logical_clock = 0
 
 
     # ------------------------------------------------------------------------------------------------------
@@ -98,8 +99,13 @@ try:
         #print ("in propagate_to_vessels")#debugtool
         global vessel_list, node_id
 
+        #propagate_to_vessels is considered to be a new event, thus increment by 1
+        lc_value = payload["logical_clock"]
+        payload["logical_clock"] = lc_value+1
+
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
+                print (payload["logical_clock"])#debugtool
                 success = contact_vessel(vessel_ip, path, payload, req)
                 if not success:
                     print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
@@ -114,13 +120,13 @@ try:
     def index():
         #print ("in / (route)")#debugtool
         global board, node_id
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='Group 97')
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=board.iteritems(), members_name_string='Group 97')
 
     @app.get('/board')
     def get_board():
         global board, node_id
         #print ("in /board (get)") #debugtool
-        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()))
+        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=board.iteritems())
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board')
     def client_add_received():
@@ -139,12 +145,12 @@ try:
 
             #Propagate the update to all the other vessels
             path = '/board/'+ str(nrPosts) +'/'
-            tempdict = {"entry" : new_element}
+            tempdict = {"entry" : new_element, "logical_clock": logical_clock, "sender_id": node_id}
      	    thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
     	    thread.daemon=True
     	    thread.start()
 
-            return {'id':element_id,'entry':new_element}
+            return {'id':nrPosts,'entry':new_element}
         except Exception as e:
             print e
         return False
@@ -172,7 +178,7 @@ try:
 
                 #Propagate it to the other vessels
                 path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
-                tempdict = {"entry" : new_element}
+                tempdict = {"entry" : new_element, "logical_clock": logical_clock, "sender_id": node_id}
                 thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
                 thread.daemon=True
                 thread.start()
