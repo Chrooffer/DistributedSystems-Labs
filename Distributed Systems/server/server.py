@@ -12,9 +12,7 @@ import time
 import json
 import argparse
 from threading import Thread
-#from copy import deepcopy
 import copy
-
 from bottle import Bottle, run, request, template
 import requests
 
@@ -134,7 +132,7 @@ try:
         Called directly when a user is doing a POST request on /board'''
         global board, node_id
         try:
-    	    #print ("in /board (post)") #debugtool
+            #print ("in /board (post)") #debugtool
 
             #Calls on help function
             nrPosts = new_post_number()
@@ -146,9 +144,9 @@ try:
             #Propagate the update to all the other vessels
             path = '/board/'+ str(nrPosts) +'/'
             tempdict = {"entry" : new_element, "logical_clock": logical_clock, "sender_id": node_id}
-     	    thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
-    	    thread.daemon=True
-    	    thread.start()
+            thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
+            thread.daemon=True
+            thread.start()
 
             return {'id':nrPosts,'entry':new_element}
         except Exception as e:
@@ -159,13 +157,15 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
-    	global board, node_id
-    	try:
+        global board, node_id
+        try:
             #print ("in /board/<element_id:int>/") #debugtool
 
             #Get the new element, and the comand (optional)
             new_element = request.forms.get("entry")
             action = request.forms.get("delete")
+            clock_value = request.forms.get("logical_clock")
+            sender_id = request.forms.get("seder_id")
 
             #Check if it has a comand
             if (action != None):
@@ -183,10 +183,14 @@ try:
                 thread.daemon=True
                 thread.start()
             else:
+                #inser to comand storage at index 0 (pushing the rest of the indexes "forward")
+                stored_comands.append({"action": None, "element_id": element_id,"element_entry": new_element, "clock_value": clock_value, "sender_id": sender_id})
+                for x in stored_comands: #debug, for-loop prints the stored_comands
+                    print x
                 add_new_element_to_store(element_id, new_element)
 
             return {'id':element_id,'entry':new_element}
-    	except Exception as e:
+        except Exception as e:
             print e
             return False
 
@@ -195,8 +199,13 @@ try:
         #print ("in /propagate/<action>/<element_id>") #debugtool
         try:
             elementToModify = request.forms.get("entry")
+            clock_value = request.forms.get("logical_clock")
+            sender_id = request.forms.get("seder_id")
             #print(element_id) #debugtool
             #print(elementToModify) #debugtool
+
+            #inser to comand storage at index 0 (pushing the rest of the indexes "forward")
+            stored_comands.append({"action": action, "element_id": element_id,"element_entry": elementToModify, "clock_value": clock_value, "sender_id": sender_id})
 
             #Check to see the comand of the action
             if action == 0:
@@ -204,11 +213,14 @@ try:
             elif action == 1:
                 delete_element_from_store(element_id)
 
+            for x in stored_comands: #debug, for-loop prints the stored_comands
+                print x
+
             return {'id':element_id,'entry':elementToModify}
         except Exception as e:
             print e
             return False
-	        #action is either 0 for modify or 1 for delete
+            #action is either 0 for modify or 1 for delete
 
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
