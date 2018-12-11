@@ -24,7 +24,8 @@ try:
     app = Bottle()
     board = {0:"nothing"}
     logical_clock = 0
-
+    #[{"action": int, "element_id": int,"element_entry": str, "clock_value": int, "sender_id": int}, {...} ...]
+    stored_comands = []
 
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
@@ -99,12 +100,11 @@ try:
         #print ("in propagate_to_vessels")#debugtool
         global vessel_list, node_id
 
-        #propagate_to_vessels is considered to be a new event, thus increment by 1
-        lc_value = payload["logical_clock"]
-        payload["logical_clock"] = lc_value+1
-
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
+                #sending a message to a node is considered a new event, thus increment by 1
+                lc_value = payload["logical_clock"]
+                payload["logical_clock"] = lc_value+1
                 print (payload["logical_clock"])#debugtool
                 success = contact_vessel(vessel_ip, path, payload, req)
                 if not success:
