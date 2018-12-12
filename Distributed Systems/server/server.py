@@ -157,7 +157,7 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
-        global board, node_id
+        global board, node_id, logical_clock
         try:
             #print ("in /board/<element_id:int>/") #debugtool
 
@@ -185,6 +185,10 @@ try:
             else:
                 #inser to comand storage at index 0 (pushing the rest of the indexes "forward")
                 stored_comands.append({"action": None, "element_id": element_id,"element_entry": new_element, "clock_value": clock_value, "sender_id": sender_id})
+
+                #increase our logical clock
+                logical_clock = int(max(logical_clock,clock_value) )+1
+
                 for x in stored_comands: #debug, for-loop prints the stored_comands
                     print x
                 add_new_element_to_store(element_id, new_element)
@@ -196,6 +200,7 @@ try:
 
     @app.post('/propagate/<action:int>/<element_id:int>/')
     def propagation_received(action, element_id):
+        global logical_clock
         #print ("in /propagate/<action>/<element_id>") #debugtool
         try:
             elementToModify = request.forms.get("entry")
@@ -206,6 +211,9 @@ try:
 
             #inser to comand storage at index 0 (pushing the rest of the indexes "forward")
             stored_comands.append({"action": action, "element_id": element_id,"element_entry": elementToModify, "clock_value": clock_value, "sender_id": sender_id})
+
+            #increase our logical clock
+            logical_clock = int(max(logical_clock,clock_value) )+1
 
             #Check to see the comand of the action
             if action == 0:
