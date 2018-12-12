@@ -15,6 +15,7 @@ from threading import Thread
 import copy
 from bottle import Bottle, run, request, template
 import requests
+from operator import itemgetter
 
 
 # ------------------------------------------------------------------------------------------------------
@@ -71,6 +72,12 @@ try:
             i += 1
         return i
 
+    def sort_stored_comands():
+        global stored_comands
+        tmp_comands = sorted(stored_comands, key = itemgetter('clock_value','sender_id'))
+        stored_comands = tmp_comands
+        return True
+
     # ------------------------------------------------------------------------------------------------------
     # DISTRIBUTED COMMUNICATIONS FUNCTIONS
     # should be given to the students?
@@ -96,15 +103,17 @@ try:
 
     def propagate_to_vessels(path, payload, req):
         #print ("in propagate_to_vessels")#debugtool
-        global vessel_list, node_id
+        global vessel_list, node_id, logical_clock
 
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
                 #sending a message to a node is considered a new event, thus increment by 1
-                lc_value = payload["logical_clock"]
-                payload["logical_clock"] = lc_value+1
+                logical_clock = logical_clock +1
+                payload["logical_clock"] = logical_clock
+
                 print (payload["logical_clock"])#debugtool
                 success = contact_vessel(vessel_ip, path, payload, req)
+
                 if not success:
                     print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
 
@@ -141,6 +150,7 @@ try:
             new_element = request.forms.get('entry')
             add_new_element_to_store(nrPosts, new_element)
 
+            print "node_id: " + str(node_id)
             #Propagate the update to all the other vessels
             path = '/board/'+ str(nrPosts) +'/'
             tempdict = {"entry" : new_element, "logical_clock": logical_clock, "sender_id": node_id}
@@ -165,8 +175,8 @@ try:
             new_element = request.forms.get("entry")
             action = request.forms.get("delete")
             clock_value = request.forms.get("logical_clock")
-            sender_id = request.forms.get("seder_id")
-
+            sender_id = request.forms.get("sender_id")
+            print "sender_id: " + str(sender_id)
             #Check if it has a comand
             if (action != None):
 
@@ -187,10 +197,17 @@ try:
                 stored_comands.append({"action": None, "element_id": element_id,"element_entry": new_element, "clock_value": clock_value, "sender_id": sender_id})
 
                 #increase our logical clock
-                logical_clock = int(max(logical_clock,clock_value) )+1
+                #logical_clock = int(max(logical_clock,clock_value) )+1
 
                 for x in stored_comands: #debug, for-loop prints the stored_comands
                     print x
+
+                sort_stored_comands()
+                for x in stored_comands: #debug, for-loop prints the stored_comands
+                    print x
+
+
+
                 add_new_element_to_store(element_id, new_element)
 
             return {'id':element_id,'entry':new_element}
@@ -205,7 +222,7 @@ try:
         try:
             elementToModify = request.forms.get("entry")
             clock_value = request.forms.get("logical_clock")
-            sender_id = request.forms.get("seder_id")
+            sender_id = request.forms.get("sender_id")
             #print(element_id) #debugtool
             #print(elementToModify) #debugtool
 
@@ -213,7 +230,7 @@ try:
             stored_comands.append({"action": action, "element_id": element_id,"element_entry": elementToModify, "clock_value": clock_value, "sender_id": sender_id})
 
             #increase our logical clock
-            logical_clock = int(max(logical_clock,clock_value) )+1
+            #logical_clock = int(max(logical_clock,clock_value) )+1
 
             #Check to see the comand of the action
             if action == 0:
@@ -221,6 +238,10 @@ try:
             elif action == 1:
                 delete_element_from_store(element_id)
 
+            for x in stored_comands: #debug, for-loop prints the stored_comands
+                print x
+
+            sort_stored_comands()
             for x in stored_comands: #debug, for-loop prints the stored_comands
                 print x
 
