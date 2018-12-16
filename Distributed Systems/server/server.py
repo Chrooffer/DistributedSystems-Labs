@@ -47,8 +47,10 @@ try:
         success = False
         try:
             #print ("in modify_element_in_store") #debugtool
+            #Check if entry_sequence exists, if it does, modify it otherwise don't do anything
+            if board.has_key(entry_sequence):
+                board[entry_sequence]=modified_element
 
-            board[entry_sequence]=modified_element
             success = True
         except Exception as e:
             print e
@@ -74,7 +76,7 @@ try:
 
     def sort_stored_comands():
         global stored_comands
-        tmp_comands = sorted(tmp_comands, key = itemgetter('sender_id')) #works due to stable sorting property of python
+        tmp_comands = sorted(tmp_comands, key = itemgetter('sender_id')) #works due to the "stable sorting" property of python's sorting
         tmp_comands = sorted(stored_comands, key = itemgetter('clock_value'))
         stored_comands = tmp_comands
         return True
