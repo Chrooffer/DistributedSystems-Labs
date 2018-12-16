@@ -198,7 +198,7 @@ try:
                 stored_comands.append({"action": None, "element_id": element_id,"element_entry": new_element, "clock_value": clock_value, "sender_id": sender_id})
 
                 #increase our logical clock
-                #logical_clock = int(max(logical_clock,clock_value) )+1
+                logical_clock = int(max(logical_clock,clock_value) )+1
 
                 for x in stored_comands: #debug, for-loop prints the stored_comands
                     print x
@@ -231,7 +231,7 @@ try:
             stored_comands.append({"action": action, "element_id": element_id,"element_entry": elementToModify, "clock_value": clock_value, "sender_id": sender_id})
 
             #increase our logical clock
-            #logical_clock = int(max(logical_clock,clock_value) )+1
+            logical_clock = int(max(logical_clock,clock_value) )+1
 
             #Check to see the comand of the action
             if action == 0:
