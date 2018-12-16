@@ -74,8 +74,8 @@ try:
 
     def sort_stored_comands():
         global stored_comands
+        tmp_comands = sorted(tmp_comands, key = itemgetter('sender_id')) #works due to stable sorting property of python
         tmp_comands = sorted(stored_comands, key = itemgetter('clock_value'))
-        tmp_comands = sorted(tmp_comands, key = itemgetter('sender_id')) #works due to stable sorting
         stored_comands = tmp_comands
         return True
 
