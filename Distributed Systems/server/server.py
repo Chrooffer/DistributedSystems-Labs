@@ -35,8 +35,10 @@ try:
         success = False
         try:
             #print ("in add_new_element_to_store")#debugtool
-
-            board.update({entry_sequence: element})
+            #if the board doesn't have taht key we are allowed to add it, otherwise don't do anything
+            if not board.has_key(entry_sequence):
+                board.update({entry_sequence: element})
+                
             success = True
         except Exception as e:
             print e
@@ -47,7 +49,7 @@ try:
         success = False
         try:
             #print ("in modify_element_in_store") #debugtool
-            #Check if entry_sequence exists, if it does, modify it otherwise don't do anything
+            #Check if entry_sequence exists, if it does, modify it, otherwise don't do anything
             if board.has_key(entry_sequence):
                 board[entry_sequence]=modified_element
 
