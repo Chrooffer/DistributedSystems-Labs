@@ -30,22 +30,22 @@ try:
     # BOARD FUNCTIONS
     # Should nopt be given to the student
     # ------------------------------------------------------------------------------------------------------
-    def add_new_element_to_store(entry_sequence, element, is_propagated_call=False):
-        global board, node_id
+    def add_new_element_to_store(entry_sequence, element, board, is_propagated_call=False):
+        global node_id
         success = False
         try:
             #print ("in add_new_element_to_store")#debugtool
             #if the board doesn't have taht key we are allowed to add it, otherwise don't do anything
             if not board.has_key(entry_sequence):
                 board.update({entry_sequence: element})
-                
+
             success = True
         except Exception as e:
             print e
         return success
 
-    def modify_element_in_store(entry_sequence, modified_element, is_propagated_call = False):
-        global board, node_id
+    def modify_element_in_store(entry_sequence, modified_element, board, is_propagated_call = False):
+        global node_id
         success = False
         try:
             #print ("in modify_element_in_store") #debugtool
@@ -58,8 +58,8 @@ try:
             print e
         return success
 
-    def delete_element_from_store(entry_sequence, is_propagated_call = False):
-        global board, node_id
+    def delete_element_from_store(entry_sequence, board, is_propagated_call = False):
+        global node_id
         success = False
         try:
             #print ("in delete_element_from_store")#debugtool
@@ -78,10 +78,31 @@ try:
 
     def sort_stored_comands():
         global stored_comands
+        tmp_comands = stored_comands
         tmp_comands = sorted(tmp_comands, key = itemgetter('sender_id')) #works due to the "stable sorting" property of python's sorting
         tmp_comands = sorted(stored_comands, key = itemgetter('clock_value'))
         stored_comands = tmp_comands
         return True
+
+    def apply_stored_comands():
+        #We apply all storde actions to a board
+        tempdict = {0:"nothing"}
+        for comand in stored_comands:
+            if comand.has_key("action") and comand.get("action") == 1:
+                #code for modify is 1
+                modify_element_in_store(comand.get("element_id"),comand.get("element_entry"), tempdict)
+
+            elif comand.has_key("action") and comand.get("action") == 2:
+                #code for delete is 2
+                delete_element_in_store(comand.get("element_id"),comand.get("element_entry"), tempdict)
+
+            elif comand.has_key("action") and comand.get("action") == None:
+                #code for adding a new elem is None (since adding doesnt have a action variable)
+                add_new_element_to_store(comand.get("element_id"),comand.get("element_entry"), tempdict)
+            else:
+                print("A faulty comand was entered, and was ingnored")
+
+        return tempdict
 
     # ------------------------------------------------------------------------------------------------------
     # DISTRIBUTED COMMUNICATIONS FUNCTIONS
@@ -153,7 +174,7 @@ try:
 
             #Get the entry and add it to local board
             new_element = request.forms.get('entry')
-            add_new_element_to_store(nrPosts, new_element)
+            add_new_element_to_store(nrPosts, new_element, board)
 
             print "node_id: " + str(node_id)
             #Propagate the update to all the other vessels
@@ -187,9 +208,9 @@ try:
 
                 #Do the change localy
                 if (action == '1'):
-                    delete_element_from_store(element_id)
+                    delete_element_from_store(element_id, board)
                 else:
-                    modify_element_in_store(element_id, new_element)
+                    modify_element_in_store(element_id, new_element,board)
 
                 #Propagate it to the other vessels
                 path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
@@ -213,7 +234,7 @@ try:
 
 
 
-                add_new_element_to_store(element_id, new_element)
+                add_new_element_to_store(element_id, new_element,board)
 
             return {'id':element_id,'entry':new_element}
         except Exception as e:
@@ -239,9 +260,9 @@ try:
 
             #Check to see the comand of the action
             if action == 0:
-                modify_element_in_store(element_id,elementToModify)
+                modify_element_in_store(element_id,elementToModify,board)
             elif action == 1:
-                delete_element_from_store(element_id)
+                delete_element_from_store(element_id,board)
 
             for x in stored_comands: #debug, for-loop prints the stored_comands
                 print x
