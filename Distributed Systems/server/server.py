@@ -35,9 +35,8 @@ try:
         success = False
         try:
             #print ("in add_new_element_to_store")#debugtool
-            #if the board doesn't have taht key we are allowed to add it, otherwise don't do anything
-            if not board.has_key(entry_sequence):
-                board.update({entry_sequence: element})
+
+            board.update({entry_sequence: element})
 
             success = True
         except Exception as e:
@@ -80,12 +79,12 @@ try:
         global stored_comands
         tmp_comands = stored_comands
         tmp_comands = sorted(tmp_comands, key = itemgetter('sender_id')) #works due to the "stable sorting" property of python's sorting
-        tmp_comands = sorted(stored_comands, key = itemgetter('clock_value'))
+        tmp_comands = sorted(tmp_comands, key = itemgetter('clock_value'))
         stored_comands = tmp_comands
         return True
 
     def apply_stored_comands():
-        #We apply all storde actions to a board
+        #We apply all stored actions to the starting board
         tempdict = {0:"nothing"}
         for comand in stored_comands:
             if comand.has_key("action") and comand.get("action") == 1:
@@ -100,7 +99,7 @@ try:
                 #code for adding a new elem is None (since adding doesnt have a action variable)
                 add_new_element_to_store(comand.get("element_id"),comand.get("element_entry"), tempdict)
             else:
-                print("A faulty comand was entered, and was ingnored")
+                print"A faulty comand was entered, and was ingnored"
 
         return tempdict
 
@@ -137,7 +136,7 @@ try:
                 logical_clock = logical_clock +1
                 payload["logical_clock"] = logical_clock
 
-                print (payload["logical_clock"])#debugtool
+                print payload["logical_clock"]#debugtool
                 success = contact_vessel(vessel_ip, path, payload, req)
 
                 if not success:
@@ -176,6 +175,9 @@ try:
             new_element = request.forms.get('entry')
             add_new_element_to_store(nrPosts, new_element, board)
 
+            #Add it to the stored comands, since when we re-create the board, we want to include the ones we sent awswell
+            stored_comands.append({"action": None, "element_id": nrPosts,"element_entry": new_element, "clock_value": logical_clock, "sender_id": node_id})
+
             print "node_id: " + str(node_id)
             #Propagate the update to all the other vessels
             path = '/board/'+ str(nrPosts) +'/'
@@ -212,6 +214,9 @@ try:
                 else:
                     modify_element_in_store(element_id, new_element,board)
 
+                #Add it to the stored comands, since when we re-create the board, we want to include the ones we sent awswell
+                stored_comands.append({"action": action, "element_id": element_id,"element_entry": new_element, "clock_value": logical_clock, "sender_id": node_id})
+
                 #Propagate it to the other vessels
                 path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
                 tempdict = {"entry" : new_element, "logical_clock": logical_clock, "sender_id": node_id}
@@ -225,16 +230,17 @@ try:
                 #increase our logical clock
                 logical_clock = int(max(logical_clock,clock_value) )+1
 
-                for x in stored_comands: #debug, for-loop prints the stored_comands
-                    print x
+                #for x in stored_comands: #debug, for-loop prints the stored_comands
+                #    print x
 
                 sort_stored_comands()
-                for x in stored_comands: #debug, for-loop prints the stored_comands
-                    print x
+                #for x in stored_comands: #debug, for-loop prints the stored_comands
+                #    print x
 
+                board = apply_stored_comands()
 
-
-                add_new_element_to_store(element_id, new_element,board)
+                #the cmp func returns a 0 if the dictonaries are equal, 1 or -1 if dict_1> dict_2 or dict_1< dict_2 (based on keys and values)
+                print "Is stored comands on starting board the same as the cuurent board " + str(cmp(board,apply_stored_comands()))
 
             return {'id':element_id,'entry':new_element}
         except Exception as e:
@@ -259,17 +265,22 @@ try:
             logical_clock = int(max(logical_clock,clock_value) )+1
 
             #Check to see the comand of the action
-            if action == 0:
-                modify_element_in_store(element_id,elementToModify,board)
-            elif action == 1:
-                delete_element_from_store(element_id,board)
+            #if action == 0:
+            #    modify_element_in_store(element_id,elementToModify,board)
+            #elif action == 1:
+            #    delete_element_from_store(element_id,board)
 
-            for x in stored_comands: #debug, for-loop prints the stored_comands
-                print x
+            #for x in stored_comands: #debug, for-loop prints the stored_comands
+            #    print x
 
             sort_stored_comands()
-            for x in stored_comands: #debug, for-loop prints the stored_comands
-                print x
+            #for x in stored_comands: #debug, for-loop prints the stored_comands
+            #    print x
+
+            board = apply_stored_comands()
+
+            #the cmp func returns a 0 if the dictonaries are equal, 1 or -1 if dict_1> dict_2 or dict_1< dict_2 (based on keys and values)
+            print "Is stored comands on starting board the same as the cuurent board " + str(cmp(board,apply_stored_comands()))
 
             return {'id':element_id,'entry':elementToModify}
         except Exception as e:
