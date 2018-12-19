@@ -37,8 +37,8 @@ try:
         success = False
         try:
             #print ("in add_new_element_to_store")#debugtool
-
-            board.update({entry_sequence: element})
+            if not board.has_key(entry_sequence):
+                board.update({entry_sequence: element})
 
             success = True
         except Exception as e:
@@ -51,6 +51,7 @@ try:
         try:
             #print ("in modify_element_in_store") #debugtool
             #Check if entry_sequence exists, if it does, modify it, otherwise don't do anything
+            print str(board.has_key(entry_sequence))
             if board.has_key(entry_sequence):
                 board[entry_sequence]=modified_element
 
@@ -105,19 +106,22 @@ try:
         #We apply all stored actions to the starting board
         tempdict = {0:"nothing"}
         for comand in stored_comands:
-            if comand.has_key("action") and comand.get("action") == 1:
-                #code for modify is 1
+            if comand.has_key("action") and comand.get("action") == 0:
+                #code for modify is 0
+                print "Modifying element with comand" + str(comand)
                 modify_element_in_store(comand.get("element_id"),comand.get("element_entry"), tempdict)
 
-            elif comand.has_key("action") and comand.get("action") == 2:
-                #code for delete is 2
-                delete_element_in_store(comand.get("element_id"),comand.get("element_entry"), tempdict)
+            elif comand.has_key("action") and comand.get("action") == 1:
+                #code for delete is 1
+                print "Deleting element with comand" + str(comand)
+                delete_element_from_store(comand.get("element_id"), tempdict)
 
             elif comand.has_key("action") and comand.get("action") == None:
                 #code for adding a new elem is None (since adding doesnt have a action variable)
+                print "Adding a new element with comand" + str(comand)
                 add_new_element_to_store(comand.get("element_id"),comand.get("element_entry"), tempdict)
             else:
-                print"A faulty comand was entered, and was ingnored"
+                print"A faulty comand was entered" + str(comand)
 
         return tempdict
 
@@ -199,7 +203,7 @@ try:
 
 
             #Add it to the stored comands, since when we re-create the board, we want to include the ones we sent awswell
-            stored_comands.append({"action": None, "element_id": nrPosts,"element_entry": new_element, "clock_value": logical_clock, "sender_id": node_id})
+            stored_comands.append({"action": None, "element_id": nrPosts,"element_entry": new_element, "clock_value": int(logical_clock), "sender_id": int(node_id)})
 
 
             #Propagate the update to all the other vessels
@@ -237,8 +241,12 @@ try:
                 else:
                     modify_element_in_store(element_id, new_element,board)
 
+                lock.acquire()
+                logical_clock = logical_clock +1
+                lock.release()
+
                 #Add it to the stored comands, since when we re-create the board, we want to include the ones we sent awswell
-                stored_comands.append({"action": action, "element_id": element_id,"element_entry": new_element, "clock_value": int(logical_clock), "sender_id": int(node_id)})
+                stored_comands.append({"action": int(action), "element_id": element_id,"element_entry": new_element, "clock_value": int(logical_clock), "sender_id": int(node_id)})
 
                 #Propagate it to the other vessels
                 path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
@@ -283,7 +291,7 @@ try:
 
     @app.post('/propagate/<action:int>/<element_id:int>/')
     def propagation_received(action, element_id):
-        global logical_clock
+        global logical_clock, board
         #print ("in /propagate/<action>/<element_id>") #debugtool
         try:
             elementToModify = request.forms.get("entry")
@@ -296,7 +304,7 @@ try:
                 print x
 
             #inser to comand storage at index 0 (pushing the rest of the indexes "forward")
-            stored_comands.append({"action": action, "element_id": element_id,"element_entry": elementToModify, "clock_value": clock_value, "sender_id": sender_id})
+            stored_comands.append({"action": int(action), "element_id": element_id,"element_entry": elementToModify, "clock_value": int(clock_value), "sender_id": int(sender_id)})
 
             #increase our logical clock
             logical_clock = int(max(logical_clock,clock_value) )+1
@@ -311,10 +319,13 @@ try:
             #    print x
 
             sort_stored_comands()
+            print "Sorted"
             for x in stored_comands: #debug, for-loop prints the stored_comands
                 print x
 
+            print str(board)
             board = apply_stored_comands()
+            print str(board)
             lock.release()
 
             #the cmp func returns a 0 if the dictonaries are equal, 1 or -1 if dict_1> dict_2 or dict_1< dict_2 (based on keys and values)
