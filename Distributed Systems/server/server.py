@@ -12,6 +12,7 @@ import time
 import json
 import argparse
 from threading import Thread
+from threading import Lock
 import copy
 from bottle import Bottle, run, request, template
 import requests
@@ -25,6 +26,7 @@ try:
     logical_clock = 0
     #[{"action": int, "element_id": int,"element_entry": str, "clock_value": int, "sender_id": int}, {...} ...]
     stored_comands = []
+    lock = Lock()
 
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
@@ -77,10 +79,26 @@ try:
 
     def sort_stored_comands():
         global stored_comands
+
         tmp_comands = stored_comands
+        print"current stored comands"
+        for x in tmp_comands: #debug, for-loop prints the stored_comands
+            print x
+
         tmp_comands = sorted(tmp_comands, key = itemgetter('sender_id')) #works due to the "stable sorting" property of python's sorting
+        print"after sort on sender_id"
+        for x in tmp_comands: #debug, for-loop prints the stored_comands
+            print x
+
         tmp_comands = sorted(tmp_comands, key = itemgetter('clock_value'))
+        print"after sort on clock_value"
+        for x in tmp_comands: #debug, for-loop prints the stored_comands
+            print x
+
         stored_comands = tmp_comands
+        print"new stored comands"
+        for x in stored_comands: #debug, for-loop prints the stored_comands
+            print x
         return True
 
     def apply_stored_comands():
@@ -133,8 +151,7 @@ try:
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
                 #sending a message to a node is considered a new event, thus increment by 1
-                logical_clock = logical_clock +1
-                payload["logical_clock"] = logical_clock
+
 
                 print payload["logical_clock"]#debugtool
                 success = contact_vessel(vessel_ip, path, payload, req)
@@ -164,9 +181,14 @@ try:
     def client_add_received():
         '''Adds a new element to the board
         Called directly when a user is doing a POST request on /board'''
-        global board, node_id
+        global board, node_id, logical_clock
         try:
             #print ("in /board (post)") #debugtool
+
+            #check the logical clock
+            lock.acquire()
+            logical_clock = logical_clock +1
+            lock.release()
 
             #Calls on help function
             nrPosts = new_post_number()
@@ -175,10 +197,11 @@ try:
             new_element = request.forms.get('entry')
             add_new_element_to_store(nrPosts, new_element, board)
 
+
             #Add it to the stored comands, since when we re-create the board, we want to include the ones we sent awswell
             stored_comands.append({"action": None, "element_id": nrPosts,"element_entry": new_element, "clock_value": logical_clock, "sender_id": node_id})
 
-            print "node_id: " + str(node_id)
+
             #Propagate the update to all the other vessels
             path = '/board/'+ str(nrPosts) +'/'
             tempdict = {"entry" : new_element, "logical_clock": logical_clock, "sender_id": node_id}
@@ -204,7 +227,7 @@ try:
             action = request.forms.get("delete")
             clock_value = request.forms.get("logical_clock")
             sender_id = request.forms.get("sender_id")
-            print "sender_id: " + str(sender_id)#debug
+            #print "sender_id: " + str(sender_id)#debug
             #Check if it has a comand
             if (action != None):
 
@@ -215,7 +238,7 @@ try:
                     modify_element_in_store(element_id, new_element,board)
 
                 #Add it to the stored comands, since when we re-create the board, we want to include the ones we sent awswell
-                stored_comands.append({"action": action, "element_id": element_id,"element_entry": new_element, "clock_value": logical_clock, "sender_id": node_id})
+                stored_comands.append({"action": action, "element_id": element_id,"element_entry": new_element, "clock_value": int(logical_clock), "sender_id": int(node_id)})
 
                 #Propagate it to the other vessels
                 path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
@@ -224,8 +247,12 @@ try:
                 thread.daemon=True
                 thread.start()
             else:
+                lock.acquire()
+                print "Unsorted"
+                for x in stored_comands: #debug, for-loop prints the stored_comands
+                    print x
                 #inser to comand storage at index 0 (pushing the rest of the indexes "forward")
-                stored_comands.append({"action": None, "element_id": element_id,"element_entry": new_element, "clock_value": clock_value, "sender_id": sender_id})
+                stored_comands.append({"action": None, "element_id": element_id,"element_entry": new_element, "clock_value": int(clock_value), "sender_id": int(sender_id)})
 
                 #increase our logical clock
                 logical_clock = int(max(logical_clock,clock_value) )+1
@@ -237,7 +264,14 @@ try:
                 #for x in stored_comands: #debug, for-loop prints the stored_comands
                 #    print x
 
+                print "Sorted"
+                for x in stored_comands: #debug, for-loop prints the stored_comands
+                    print x
+
+                print str(board)
                 board = apply_stored_comands()
+                print str(board)
+                lock.release()
 
                 #the cmp func returns a 0 if the dictonaries are equal, 1 or -1 if dict_1> dict_2 or dict_1< dict_2 (based on keys and values)
                 print "Is stored comands on starting board the same as the cuurent board " + str(cmp(board,apply_stored_comands()))
@@ -257,6 +291,9 @@ try:
             sender_id = request.forms.get("sender_id")
             #print(element_id) #debugtool
             #print(elementToModify) #debugtool
+            lock.acquire()
+            for x in stored_comands: #debug, for-loop prints the stored_comands
+                print x
 
             #inser to comand storage at index 0 (pushing the rest of the indexes "forward")
             stored_comands.append({"action": action, "element_id": element_id,"element_entry": elementToModify, "clock_value": clock_value, "sender_id": sender_id})
@@ -274,10 +311,11 @@ try:
             #    print x
 
             sort_stored_comands()
-            #for x in stored_comands: #debug, for-loop prints the stored_comands
-            #    print x
+            for x in stored_comands: #debug, for-loop prints the stored_comands
+                print x
 
             board = apply_stored_comands()
+            lock.release()
 
             #the cmp func returns a 0 if the dictonaries are equal, 1 or -1 if dict_1> dict_2 or dict_1< dict_2 (based on keys and values)
             print "Is stored comands on starting board the same as the cuurent board " + str(cmp(board,apply_stored_comands()))
