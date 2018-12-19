@@ -22,10 +22,16 @@ from operator import itemgetter
 # ------------------------------------------------------------------------------------------------------
 try:
     app = Bottle()
-    board = {0:"nothing"}
+    board = {}
     logical_clock = 0
     #[{"action": int, "element_id": int,"element_entry": str, "clock_value": int, "sender_id": int}, {...} ...]
     stored_comands = []
+
+    #This implementation requires the use of a lock inorder to block the incommming posts during
+    #the sorting part, since the incommming posts can (and will) change the stored_comands list (since it's global
+    #and thus accessable by all threads) during the sorting part and thus poentially making the
+    #stored_comands unsorted. The lock is also used when incrementing the logical_clock as a
+    #safety precaution (since it's also global and thus can cause problems with the stored_comands).
     lock = Lock()
 
     # ------------------------------------------------------------------------------------------------------
@@ -37,6 +43,8 @@ try:
         success = False
         try:
             #print ("in add_new_element_to_store")#debugtool
+
+            #if the key exists we can't add a new entry to that key (since that is an "modify action")
             if not board.has_key(entry_sequence):
                 board.update({entry_sequence: element})
 
@@ -50,6 +58,7 @@ try:
         success = False
         try:
             #print ("in modify_element_in_store") #debugtool
+
             #Check if entry_sequence exists, if it does, modify it, otherwise don't do anything
             print str(board.has_key(entry_sequence))
             if board.has_key(entry_sequence):
@@ -71,13 +80,21 @@ try:
             print e
         return success
 
-        #new_post_number checks for the first avaviable key and returns it
+    # ------------------------------------------------------------------------------------------------------
+    # HELP FUNCTIONS
+    # ------------------------------------------------------------------------------------------------------
+
+    #new_post_number checks for the first avaviable key and returns it
     def new_post_number():
         i = 0
         while board.has_key(i):
             i += 1
         return i
 
+    #method sorts the stored_comands, first by their sender_id and the with their clock_value
+    #this kind of sorting makes it that the lowest clock_value appear first and if several
+    #nodes had the same clock_value, the lowest id gets priority. The sorting method utilizes
+    #the stable sorting property, which pythons built in sort function has
     def sort_stored_comands():
         global stored_comands
 
@@ -86,7 +103,7 @@ try:
         for x in tmp_comands: #debug, for-loop prints the stored_comands
             print x
 
-        tmp_comands = sorted(tmp_comands, key = itemgetter('sender_id')) #works due to the "stable sorting" property of python's sorting
+        tmp_comands = sorted(tmp_comands, key = itemgetter('sender_id'))
         print"after sort on sender_id"
         for x in tmp_comands: #debug, for-loop prints the stored_comands
             print x
@@ -103,22 +120,24 @@ try:
         return True
 
     def apply_stored_comands():
-        #We apply all stored actions to the starting board
-        tempdict = {0:"nothing"}
+        #We apply all stored actions to the starting board, if every node has the same list
+        #of sorted comands and applies them to the same starting board and in the same
+        #order, then their boards must be the same!
+        tempdict = {}
         for comand in stored_comands:
             if comand.has_key("action") and comand.get("action") == 0:
                 #code for modify is 0
-                print "Modifying element with comand" + str(comand)
+                print "Modifying element with comand" + str(comand) #debug
                 modify_element_in_store(comand.get("element_id"),comand.get("element_entry"), tempdict)
 
             elif comand.has_key("action") and comand.get("action") == 1:
                 #code for delete is 1
-                print "Deleting element with comand" + str(comand)
+                print "Deleting element with comand" + str(comand) #debug
                 delete_element_from_store(comand.get("element_id"), tempdict)
 
             elif comand.has_key("action") and comand.get("action") == None:
                 #code for adding a new elem is None (since adding doesnt have a action variable)
-                print "Adding a new element with comand" + str(comand)
+                print "Adding a new element with comand" + str(comand)#debug
                 add_new_element_to_store(comand.get("element_id"),comand.get("element_entry"), tempdict)
             else:
                 print"A faulty comand was entered" + str(comand)
@@ -154,8 +173,6 @@ try:
 
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
-                #sending a message to a node is considered a new event, thus increment by 1
-
 
                 print payload["logical_clock"]#debugtool
                 success = contact_vessel(vessel_ip, path, payload, req)
@@ -187,12 +204,11 @@ try:
         Called directly when a user is doing a POST request on /board'''
         global board, node_id, logical_clock
         try:
-            #print ("in /board (post)") #debugtool
 
-            #check the logical clock
-            lock.acquire()
+            #change the logical clock (inside the lock)
+            lock.acquire(True)
             logical_clock = logical_clock +1
-            lock.release()
+
 
             #Calls on help function
             nrPosts = new_post_number()
@@ -201,10 +217,8 @@ try:
             new_element = request.forms.get('entry')
             add_new_element_to_store(nrPosts, new_element, board)
 
-
             #Add it to the stored comands, since when we re-create the board, we want to include the ones we sent awswell
             stored_comands.append({"action": None, "element_id": nrPosts,"element_entry": new_element, "clock_value": int(logical_clock), "sender_id": int(node_id)})
-
 
             #Propagate the update to all the other vessels
             path = '/board/'+ str(nrPosts) +'/'
@@ -213,11 +227,11 @@ try:
             thread.daemon=True
             thread.start()
 
+            lock.release()
             return {'id':nrPosts,'entry':new_element}
         except Exception as e:
             print e
         return False
-
 
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board/<element_id:int>/')
@@ -226,12 +240,12 @@ try:
         try:
             #print ("in /board/<element_id:int>/") #debugtool
 
-            #Get the new element, and the comand (optional)
+            #Get the new element, and the comand (possible that it's equal to None)
             new_element = request.forms.get("entry")
             action = request.forms.get("delete")
             clock_value = request.forms.get("logical_clock")
             sender_id = request.forms.get("sender_id")
-            #print "sender_id: " + str(sender_id)#debug
+
             #Check if it has a comand
             if (action != None):
 
@@ -241,9 +255,9 @@ try:
                 else:
                     modify_element_in_store(element_id, new_element,board)
 
-                lock.acquire()
+                #change the logical clock (inside of the lock)
+                lock.acquire(True)
                 logical_clock = logical_clock +1
-                lock.release()
 
                 #Add it to the stored comands, since when we re-create the board, we want to include the ones we sent awswell
                 stored_comands.append({"action": int(action), "element_id": element_id,"element_entry": new_element, "clock_value": int(logical_clock), "sender_id": int(node_id)})
@@ -254,35 +268,39 @@ try:
                 thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
                 thread.daemon=True
                 thread.start()
+
+                lock.release()
             else:
-                lock.acquire()
+
+                #grab the lock
+                lock.acquire(True)
+
                 print "Unsorted"
                 for x in stored_comands: #debug, for-loop prints the stored_comands
                     print x
-                #inser to comand storage at index 0 (pushing the rest of the indexes "forward")
+
+                #insert comand to the storage
                 stored_comands.append({"action": None, "element_id": element_id,"element_entry": new_element, "clock_value": int(clock_value), "sender_id": int(sender_id)})
 
                 #increase our logical clock
-                logical_clock = int(max(logical_clock,clock_value) )+1
+                logical_clock = max(int(logical_clock),int(clock_value)) +1
 
-                #for x in stored_comands: #debug, for-loop prints the stored_comands
-                #    print x
-
+                #sort the comands
                 sort_stored_comands()
-                #for x in stored_comands: #debug, for-loop prints the stored_comands
-                #    print x
 
-                print "Sorted"
+                print "Sorted" #debug
                 for x in stored_comands: #debug, for-loop prints the stored_comands
                     print x
 
-                print str(board)
-                board = apply_stored_comands()
-                print str(board)
-                lock.release()
+                print str(board) #debug before applying stored comands
 
-                #the cmp func returns a 0 if the dictonaries are equal, 1 or -1 if dict_1> dict_2 or dict_1< dict_2 (based on keys and values)
-                print "Is stored comands on starting board the same as the cuurent board " + str(cmp(board,apply_stored_comands()))
+                #update the board
+                board = apply_stored_comands()
+
+                print str(board) #debug after applying stored comands
+
+                #release the lock
+                lock.release()
 
             return {'id':element_id,'entry':new_element}
         except Exception as e:
@@ -297,39 +315,37 @@ try:
             elementToModify = request.forms.get("entry")
             clock_value = request.forms.get("logical_clock")
             sender_id = request.forms.get("sender_id")
-            #print(element_id) #debugtool
-            #print(elementToModify) #debugtool
-            lock.acquire()
+
+            #grab the lock
+            lock.acquire(True)
+
             for x in stored_comands: #debug, for-loop prints the stored_comands
                 print x
 
-            #inser to comand storage at index 0 (pushing the rest of the indexes "forward")
+            #insert comand to the storage
             stored_comands.append({"action": int(action), "element_id": element_id,"element_entry": elementToModify, "clock_value": int(clock_value), "sender_id": int(sender_id)})
 
             #increase our logical clock
-            logical_clock = int(max(logical_clock,clock_value) )+1
-
-            #Check to see the comand of the action
-            #if action == 0:
-            #    modify_element_in_store(element_id,elementToModify,board)
-            #elif action == 1:
-            #    delete_element_from_store(element_id,board)
+            logical_clock = max(int(logical_clock),int(clock_value)) +1
 
             #for x in stored_comands: #debug, for-loop prints the stored_comands
             #    print x
 
+            #sort the comands
             sort_stored_comands()
             print "Sorted"
             for x in stored_comands: #debug, for-loop prints the stored_comands
                 print x
 
-            print str(board)
-            board = apply_stored_comands()
-            print str(board)
-            lock.release()
+            print str(board) #debug before applying stored comands
 
-            #the cmp func returns a 0 if the dictonaries are equal, 1 or -1 if dict_1> dict_2 or dict_1< dict_2 (based on keys and values)
-            print "Is stored comands on starting board the same as the cuurent board " + str(cmp(board,apply_stored_comands()))
+            #update the board
+            board = apply_stored_comands()
+
+            print str(board) #debug after applying stored comands
+
+            #release the lock
+            lock.release()
 
             return {'id':element_id,'entry':elementToModify}
         except Exception as e:
