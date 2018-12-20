@@ -32,3 +32,7 @@ for i in `seq 140 159`; do #20 posts from node 8
 	curl -d 'entry=t'${i} -X 'POST' 'http://10.1.0.8/board' &
 done
 
+for i in `seq 140 159`; do #20 posts from node 9
+	curl -d 'entry=t'${i} -X 'POST' 'http://10.1.0.9/board' &
+done
+
