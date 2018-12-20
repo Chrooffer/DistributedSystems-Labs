@@ -295,6 +295,10 @@ try:
                 #sort the comands
                 sort_stored_comands()
 
+                #print "Sorted"
+                #for x in stored_comands: #debug, for-loop prints the stored_comands
+                #    print x
+
                 #print str(board) #debug before applying stored comands
 
                 #update the board
@@ -324,8 +328,8 @@ try:
             #grab the lock
             lock.acquire(True)
 
-            for x in stored_comands: #debug, for-loop prints the stored_comands
-                print x
+            #for x in stored_comands: #debug, for-loop prints the stored_comands
+            #    print x
 
             #insert comand to the storage
             stored_comands.append({"action": int(action), "element_id": element_id,"element_entry": elementToModify, "clock_value": int(clock_value), "sender_id": int(sender_id)})
