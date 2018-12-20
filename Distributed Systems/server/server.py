@@ -27,6 +27,10 @@ try:
     #[{"action": int, "element_id": int,"element_entry": str, "clock_value": int, "sender_id": int}, {...} ...]
     stored_comands = []
 
+    #used to measure and store the time it takes for consistency
+    is_first_message = True
+    time_of_first_message =0
+
     #This implementation requires the use of a lock inorder to block the incommming posts during
     #the sorting part, since the incommming posts can (and will) change the stored_comands list (since it's global
     #and thus accessable by all threads) during the sorting part and thus poentially making the
@@ -60,7 +64,7 @@ try:
             #print ("in modify_element_in_store") #debugtool
 
             #Check if entry_sequence exists, if it does, modify it, otherwise don't do anything
-            print str(board.has_key(entry_sequence))
+            #print str(board.has_key(entry_sequence))
             if board.has_key(entry_sequence):
                 board[entry_sequence]=modified_element
 
@@ -98,25 +102,17 @@ try:
     def sort_stored_comands():
         global stored_comands
 
+        #create tmp_comands
         tmp_comands = stored_comands
-        print"current stored comands"
-        for x in tmp_comands: #debug, for-loop prints the stored_comands
-            print x
 
+        #sort by sender id
         tmp_comands = sorted(tmp_comands, key = itemgetter('sender_id'))
-        print"after sort on sender_id"
-        for x in tmp_comands: #debug, for-loop prints the stored_comands
-            print x
 
+        #sort by clock_value
         tmp_comands = sorted(tmp_comands, key = itemgetter('clock_value'))
-        print"after sort on clock_value"
-        for x in tmp_comands: #debug, for-loop prints the stored_comands
-            print x
 
+        #update the stored_comands
         stored_comands = tmp_comands
-        print"new stored comands"
-        for x in stored_comands: #debug, for-loop prints the stored_comands
-            print x
         return True
 
     def apply_stored_comands():
@@ -127,18 +123,16 @@ try:
         for comand in stored_comands:
             if comand.has_key("action") and comand.get("action") == 0:
                 #code for modify is 0
-                print "Modifying element with comand" + str(comand) #debug
                 modify_element_in_store(comand.get("element_id"),comand.get("element_entry"), tempdict)
 
             elif comand.has_key("action") and comand.get("action") == 1:
                 #code for delete is 1
-                print "Deleting element with comand" + str(comand) #debug
                 delete_element_from_store(comand.get("element_id"), tempdict)
 
             elif comand.has_key("action") and comand.get("action") == None:
                 #code for adding a new elem is None (since adding doesnt have a action variable)
-                print "Adding a new element with comand" + str(comand)#debug
                 add_new_element_to_store(comand.get("element_id"),comand.get("element_entry"), tempdict)
+
             else:
                 print"A faulty comand was entered" + str(comand)
 
@@ -174,7 +168,7 @@ try:
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
 
-                print payload["logical_clock"]#debugtool
+                #print payload["logical_clock"]#debugtool
                 success = contact_vessel(vessel_ip, path, payload, req)
 
                 if not success:
@@ -202,13 +196,16 @@ try:
     def client_add_received():
         '''Adds a new element to the board
         Called directly when a user is doing a POST request on /board'''
-        global board, node_id, logical_clock
+        global board, node_id, logical_clock, is_first_message, time_of_first_message
         try:
+            #start time measurement
+            if is_first_message:
+                is_first_message = False
+                time_of_first_message = time.time()
 
             #change the logical clock (inside the lock)
             lock.acquire(True)
             logical_clock = logical_clock +1
-
 
             #Calls on help function
             nrPosts = new_post_number()
@@ -227,7 +224,10 @@ try:
             thread.daemon=True
             thread.start()
 
+            #release lock
             lock.release()
+
+            print "Seconds since first message: " +str(time.time() - time_of_first_message)
             return {'id':nrPosts,'entry':new_element}
         except Exception as e:
             print e
@@ -236,8 +236,13 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
-        global board, node_id, logical_clock
+        global board, node_id, logical_clock, is_first_message, time_of_first_message
         try:
+            #start time measurement
+            if is_first_message:
+                is_first_message = False
+                time_of_first_message = time.time()
+
             #print ("in /board/<element_id:int>/") #debugtool
 
             #Get the new element, and the comand (possible that it's equal to None)
@@ -269,15 +274,17 @@ try:
                 thread.daemon=True
                 thread.start()
 
+                #release the lock
                 lock.release()
+                print "Seconds since first message: " +str(time.time() - time_of_first_message)
             else:
 
                 #grab the lock
                 lock.acquire(True)
 
-                print "Unsorted"
-                for x in stored_comands: #debug, for-loop prints the stored_comands
-                    print x
+                #print "Unsorted"
+                #for x in stored_comands: #debug, for-loop prints the stored_comands
+                #    print x
 
                 #insert comand to the storage
                 stored_comands.append({"action": None, "element_id": element_id,"element_entry": new_element, "clock_value": int(clock_value), "sender_id": int(sender_id)})
@@ -288,19 +295,17 @@ try:
                 #sort the comands
                 sort_stored_comands()
 
-                print "Sorted" #debug
-                for x in stored_comands: #debug, for-loop prints the stored_comands
-                    print x
-
-                print str(board) #debug before applying stored comands
+                #print str(board) #debug before applying stored comands
 
                 #update the board
                 board = apply_stored_comands()
 
-                print str(board) #debug after applying stored comands
+                #print str(board) #debug after applying stored comands
 
                 #release the lock
                 lock.release()
+
+                print "Seconds since first message: " +str(time.time() - time_of_first_message)
 
             return {'id':element_id,'entry':new_element}
         except Exception as e:
@@ -333,20 +338,18 @@ try:
 
             #sort the comands
             sort_stored_comands()
-            print "Sorted"
-            for x in stored_comands: #debug, for-loop prints the stored_comands
-                print x
 
-            print str(board) #debug before applying stored comands
+            #print str(board) #debug before applying stored comands
 
             #update the board
             board = apply_stored_comands()
 
-            print str(board) #debug after applying stored comands
+            #print str(board) #debug after applying stored comands
 
             #release the lock
             lock.release()
 
+            print "Seconds since first message: " + str(time.time() - time_of_first_message)
             return {'id':element_id,'entry':elementToModify}
         except Exception as e:
             print e
