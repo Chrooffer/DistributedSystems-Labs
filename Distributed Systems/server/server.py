@@ -30,6 +30,10 @@ try:
     priority = randint(1,10000)
     leader_id = None
 
+    #used to measure and store the time it takes for consistency
+    is_first_message = True
+    time_of_first_message =0
+
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
     # Should nopt be given to the student
@@ -155,8 +159,14 @@ try:
     def client_add_received():
         '''Adds a new element to the board
         Called directly when a user is doing a POST request on /board'''
-        global board, node_id
+        global board, node_id, is_first_message, time_of_first_message
         try:
+
+            #start time measurement
+            if is_first_message:
+                is_first_message = False
+                time_of_first_message = time.time()
+
             #if this node doesn't have a leader, create an election
             if leader_id == None:
                 create_election()
@@ -171,7 +181,7 @@ try:
             timer.start()
 
             #time.sleep(5)#debugtool (to check if the helper is running concurently and delays properly)
-
+            print "Seconds since first message: " +str(time.time() - time_of_first_message)
             return {'entry':new_element}
         except Exception as e:
             print e
@@ -208,8 +218,13 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
-        global board, node_id
+        global board, node_id, is_first_message, time_of_first_message
         try:
+            #start time measurement
+            if is_first_message:
+                is_first_message = False
+                time_of_first_message = time.time()
+
             #if this node doesn't have a leader, create an election
             if leader_id == None:
                 create_election()
@@ -225,7 +240,7 @@ try:
             timer.start()
 
             #time.sleep(5)#debugtool (to check if the helper is running concurently and delays properly)
-
+            print "Seconds since first message: " +str(time.time() - time_of_first_message)
             return {'id':element_id,'entry':new_element}
         except Exception as e:
             print e
@@ -266,6 +281,7 @@ try:
             elementToAdd = request.forms.get("entry")
             add_new_element_to_store(element_id, elementToAdd)
 
+            print "Seconds since first message: " +str(time.time() - time_of_first_message)
             return {'id':element_id,'entry':elementToAdd}
         except Exception as e:
             print e
@@ -286,6 +302,7 @@ try:
             else:
                 delete_element_from_store(element_id)
 
+            print "Seconds since first message: " +str(time.time() - time_of_first_message)
             return {'id':element_id,'entry':elementToModify}
         except Exception as e:
             print e
@@ -295,7 +312,7 @@ try:
     def start_election():
         global amount_of_nodes
         global leader_id
-        print ("In election cycle")#debugtool
+        #print ("In election cycle")#debugtool
         #payload is a dict and is formated: {"entry":str({0:1000, 1:23,...})}
         try:
             #the dictionary containing the candidates are sent as a string and thus
@@ -316,7 +333,7 @@ try:
 
                 #update candidates with own id and priority
                 candidates.update({node_id: priority})
-                print(candidates)#debugtool
+                #print(candidates)#debugtool
 
                 #create the new dictonary (payload)
                 tmpdict = {"entry": str(candidates)}
@@ -328,7 +345,7 @@ try:
                 thread.start()
             else:
 
-                print ("The leader's ID (before assignment) is: " + str(leader_id))#debugtool
+                #print ("The leader's ID (before assignment) is: " + str(leader_id))#debugtool
                 #If this is not true, we have passed stage 1, and is therefore
                 # done (this works because leader_id was cleared in the first loop of
                 # the election process)
@@ -342,7 +359,7 @@ try:
                             highest_key = key
                             highest_value = value
                     leader_id = highest_key
-                    print ("The leader's ID is: " + str(leader_id))#debugtool
+                    #print ("The leader's ID is: " + str(leader_id))#debugtool
 
                     #send to the next node
                     path = '/election'
