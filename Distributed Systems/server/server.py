@@ -18,7 +18,6 @@ import copy
 from bottle import Bottle, run, request, template
 import requests
 
-
 # ------------------------------------------------------------------------------------------------------
 try:
     app = Bottle()
