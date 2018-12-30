@@ -17,9 +17,9 @@ var page_reload_count = 0;
 
 function update_contents(){
     page_reload_count += 1;
-    $("#boardcontents_placeholder").load("/board #boardcontents_placeholder", function (data, status) {
-        //alert("Data: " + data + "\nStatus: " + status);
-        $("#boardcontents_status_placeholder").text(page_reload_count + ": " + status);
+    $("#vote_result_placeholder").load("/vote/result", function (data, status) {
+    	//alert("Data: " + data + "\nStatus: " + status);
+    	$("#boardcontents_status_placeholder").text(page_reload_count + ": " + status);
     });
 }
 
@@ -102,13 +102,21 @@ footer {
     <!-- This is a target for forms to prevent reloading the page on form submit. We handle the update in the script instead. USE style="display:none" to hide it -->   
     <iframe name="noreload-form-target" width="90%" height="50" src="about:blank" frameborder="0" scrolling="yes" resizable seamless></iframe>
 
-    <!-- This place shows the text box used to enter data to the blackboard by posting a request to the server -->
-    <div id="board_form_placeholder">
-        <h3>Submit to board</h3>
-        <form id="usrform" target="noreload-form-target">
-            <input type="text" name="entry" size="100%" autofocus required />
-            <input type="submit" formmethod="post" formaction="board" value="Submit to board"/>
-        </form>
+    <!-- This place shows the buttons used to request a vote -->
+     <div id="vote_form_placeholder">
+      <h3>Vote</h3>
+      <form id="usrform" target="noreload-form-target">
+        <input type="submit" formmethod="post" formaction="/vote/attack" value="Attack" />
+        <input type="submit" formmethod="post" formaction="/vote/retreat" value="Retreat" />
+        <input type="submit" formmethod="post" formaction="/vote/byzantine" value="Byzantine" />
+      </form>
+    </div>
+
+    <h3>Result</h3>
+    <button onclick="update_contents();">Refresh Vote Result</button>
+
+    <div id="vote_result_placeholder">
+    <pre>Voting Results ... </pre>
     </div>
 
     <!-- The board contents come here -->  
