@@ -21,8 +21,10 @@ import requests
 # ------------------------------------------------------------------------------------------------------
 try:
     app = Bottle()
-    board = {0:"nothing"}
-
+    board = {}
+    # status: 0 = unassigned, 1= attacking 2=retreating 3=byzantine
+    status = 0
+    result_vector = []
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
     # Should nopt be given to the student
@@ -201,7 +203,37 @@ try:
             print e
             return False
 	        #action is either 0 for modify or 1 for delete
+    # ------------------------------------------------------------------------------------------------------
+    # BYZANTINE ALGORITHM
+    # ------------------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------
+    @app.post('/vote/attack')
+    def is_attacking():
+        global status
 
+        status= 1
+        return "Attacking"
+
+
+    @app.post('/vote/retreat')
+    def is_retreating():
+        global status
+
+        status= 2
+        return "Retreating"
+
+
+    @app.post('/vote/byzantine')
+    def is_byzantine():
+        global status
+
+        status= 3
+        return "Byzantineing"
+
+
+    @app.get('/vote/result')
+    def vote_result():
+        return str(result_vector)
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
     # ------------------------------------------------------------------------------------------------------
