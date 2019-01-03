@@ -24,7 +24,9 @@ try:
     board = {}
     # status: 0 = unassigned, 1= attacking 2=retreating 3=byzantine
     status = 0
-    result_vector = []
+    responce_vector=[]
+
+
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
     # Should nopt be given to the student
@@ -209,19 +211,42 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.post('/vote/attack')
     def is_attacking():
-        global status
+        global status,node_id
+        try:
+            status= 1
+            responce_vector[int(node_id)-1]= True
+            print str(responce_vector) #debugg
 
-        status= 1
-        return "Attacking"
+            #Propagate the update to all the other vessels
+            path = '/vote/receive'
+            tempdict = {"entry" : True, "id": node_id} #True = Attack
+            thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
+            thread.daemon=True
+            thread.start()
 
+            return "Attacking"
+        except Exception as e:
+            print e
+        return False
 
     @app.post('/vote/retreat')
     def is_retreating():
         global status
-
-        status= 2
-        return "Retreating"
-
+        try:
+            status= 2
+            responce_vector[int(node_id)-1]= False
+            print str(responce_vector) #debugg
+            
+            #Propagate the update to all the other vessels
+            path = '/vote/receive'
+            tempdict = {"entry" : False, "id": node_id} #True = Attack
+            thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
+            thread.daemon=True
+            thread.start()
+            return "Retreating"
+        except Exception as e:
+            print e
+        return False
 
     @app.post('/vote/byzantine')
     def is_byzantine():
@@ -233,7 +258,22 @@ try:
 
     @app.get('/vote/result')
     def vote_result():
-        return str(result_vector)
+        return str([])
+
+    @app.post('/vote/receive')
+    def receive_from_other():
+        global responce_vector
+        try:
+            entry = request.forms.get("entry")
+            id = request.forms.get("id")
+            responce_vector[int(id)-1]= entry== 'True'#comparision since entry is a string
+
+            print str(responce_vector) #debugg
+
+            return {"entry":entry, "id":id}
+        except Exception as e:
+            print e
+        return False
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
     # ------------------------------------------------------------------------------------------------------
@@ -241,7 +281,7 @@ try:
     # a single example (index) should be done for get, and one for post Give it to the students
     # Execute the code
     def main():
-        global vessel_list, node_id, app
+        global vessel_list, node_id, app,amount_of_vessels,responce_vector
 
         port = 80
         parser = argparse.ArgumentParser(description='Your own implementation of the distributed blackboard')
@@ -249,6 +289,11 @@ try:
         parser.add_argument('--vessels', nargs='?', dest='nbv', default=1, type=int, help='The total number of vessels present in the system')
         args = parser.parse_args()
         node_id = args.nid
+
+        for i in range(1, args.nbv): #fills the vector with "None" as placeholder values
+            responce_vector.append(None)
+        print str(responce_vector) #debugg
+
         vessel_list = dict()
         for i in range(1, args.nbv):
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
