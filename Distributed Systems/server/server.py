@@ -25,6 +25,7 @@ try:
     # status: 0 = unassigned, 1= attacking 2=retreating 3=byzantine
     status = 0
     responce_vector=[]
+    all_vectors=[]
 
 
     # ------------------------------------------------------------------------------------------------------
@@ -118,97 +119,54 @@ try:
         global board, node_id
         return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='Group 97')
 
-    @app.get('/board')
-    def get_board():
-        global board, node_id
-        #print ("in /board (get)") #debugtool
-        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()))
-    # ------------------------------------------------------------------------------------------------------
-    @app.post('/board')
-    def client_add_received():
-        '''Adds a new element to the board
-        Called directly when a user is doing a POST request on /board'''
-        global board, node_id
-        try:
-    	    #print ("in /board (post)") #debugtool
-
-            #Calls on help function
-            nrPosts = new_post_number()
-
-            #Get the entry and add it to local board
-            new_element = request.forms.get('entry')
-            add_new_element_to_store(nrPosts, new_element)
-
-            #Propagate the update to all the other vessels
-            path = '/board/'+ str(nrPosts) +'/'
-            tempdict = {"entry" : new_element}
-     	    thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
-    	    thread.daemon=True
-    	    thread.start()
-
-            return {'id':element_id,'entry':new_element}
-        except Exception as e:
-            print e
-        return False
-
-
-    # ------------------------------------------------------------------------------------------------------
-    @app.post('/board/<element_id:int>/')
-    def client_action_received(element_id):
-    	global board, node_id
-    	try:
-            #print ("in /board/<element_id:int>/") #debugtool
-
-            #Get the new element, and the comand (optional)
-            new_element = request.forms.get("entry")
-            action = request.forms.get("delete")
-
-            #Check if it has a comand
-            if (action != None):
-
-                #Do the change localy
-                if (action == '1'):
-                    delete_element_from_store(element_id)
-                else:
-                    modify_element_in_store(element_id, new_element)
-
-                #Propagate it to the other vessels
-                path = '/propagate/'+ str(action) +'/' + str(element_id) +'/'
-                tempdict = {"entry" : new_element}
-                thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
-                thread.daemon=True
-                thread.start()
-            else:
-                add_new_element_to_store(element_id, new_element)
-
-            return {'id':element_id,'entry':new_element}
-    	except Exception as e:
-            print e
-            return False
-
-    @app.post('/propagate/<action:int>/<element_id:int>/')
-    def propagation_received(action, element_id):
-        #print ("in /propagate/<action>/<element_id>") #debugtool
-        try:
-            elementToModify = request.forms.get("entry")
-            #print(element_id) #debugtool
-            #print(elementToModify) #debugtool
-
-            #Check to see the comand of the action
-            if action == 0:
-                modify_element_in_store(element_id,elementToModify)
-            elif action == 1:
-                delete_element_from_store(element_id)
-
-            return {'id':element_id,'entry':elementToModify}
-        except Exception as e:
-            print e
-            return False
-	        #action is either 0 for modify or 1 for delete
     # ------------------------------------------------------------------------------------------------------
     # BYZANTINE ALGORITHM
     # ------------------------------------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------------
+
+    #Simple methods that the byzantine node calls to decide what to vote.
+
+
+    #Compute byzantine votes for round 1, by trying to create
+    #a split decision.
+    #input:
+    #	number of loyal nodes,
+    #	number of total nodes,
+    #	Decision on a tie: True or False
+    #output:
+    #	A list with votes to send to the loyal nodes
+    #	in the form [True,False,True,.....]
+    def compute_byzantine_vote_round1(no_loyal,no_total,on_tie):
+
+      result_vote = []
+      for i in range(0,no_loyal):
+        if i%2==0:
+          result_vote.append(not on_tie)
+        else:
+          result_vote.append(on_tie)
+      return result_vote
+
+    #Compute byzantine votes for round 2, trying to swing the decision
+    #on different directions for different nodes.
+    #input:
+    #	number of loyal nodes,
+    #	number of total nodes,
+    #	Decision on a tie: True or False
+    #output:
+    #	A list where every element is a the vector that the
+    #	byzantine node will send to every one of the loyal ones
+    #	in the form [[True,...],[False,...],...]
+    def compute_byzantine_vote_round2(no_loyal,no_total,on_tie):
+
+      result_vectors=[]
+      for i in range(0,no_loyal):
+        if i%2==0:
+          result_vectors.append([on_tie]*no_total)
+        else:
+          result_vectors.append([not on_tie]*no_total)
+      return result_vectors
+
+
+
     @app.post('/vote/attack')
     def is_attacking():
         global status,node_id
@@ -218,7 +176,7 @@ try:
             print str(responce_vector) #debugg
 
             #Propagate the update to all the other vessels
-            path = '/vote/receive'
+            path = '/vote/receive/first'
             tempdict = {"entry" : True, "id": node_id} #True = Attack
             thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
             thread.daemon=True
@@ -236,9 +194,9 @@ try:
             status= 2
             responce_vector[int(node_id)-1]= False
             print str(responce_vector) #debugg
-            
+
             #Propagate the update to all the other vessels
-            path = '/vote/receive'
+            path = '/vote/receive/first'
             tempdict = {"entry" : False, "id": node_id} #True = Attack
             thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
             thread.daemon=True
@@ -260,7 +218,7 @@ try:
     def vote_result():
         return str([])
 
-    @app.post('/vote/receive')
+    @app.post('/vote/receive/first')
     def receive_from_other():
         global responce_vector
         try:
@@ -269,6 +227,21 @@ try:
             responce_vector[int(id)-1]= entry== 'True'#comparision since entry is a string
 
             print str(responce_vector) #debugg
+
+            return {"entry":entry, "id":id}
+        except Exception as e:
+            print e
+        return False
+
+    @app.post('/vote/receive/second')
+    def receive_from_other_all():
+        global responce_vector
+        try:
+            entry = request.forms.get("entry")
+            id = request.forms.get("id")
+            all_vectors[int(id)-1]= entry
+
+            print str(all_vectors) #debugg
 
             return {"entry":entry, "id":id}
         except Exception as e:
@@ -292,6 +265,7 @@ try:
 
         for i in range(1, args.nbv): #fills the vector with "None" as placeholder values
             responce_vector.append(None)
+            all_vectors.append(None)
         print str(responce_vector) #debugg
 
         vessel_list = dict()
