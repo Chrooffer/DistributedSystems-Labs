@@ -26,6 +26,7 @@ try:
     status = 0
     responce_vector=[]
     all_vectors=[]
+    tie_breaker = True #True for attack to win a tie, False for retreat to win a tie
 
 
     # ------------------------------------------------------------------------------------------------------
@@ -107,6 +108,21 @@ try:
                 if not success:
                     print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
 
+    #a modification of propagate_to_vessels, it allows the "entry" values
+    #to be changed and thus sending different "entry"s to the other nodes
+    def byzantine_propagate(path, payload, req, byzantine_entries):
+        global vessel_list, node_id
+
+        for vessel_id, vessel_ip in vessel_list.items():
+            if int(vessel_id) != node_id: # don't propagate to yourself
+
+                print "Vessel_id: " + str(vessel_id)#debug
+
+                #change the entry parameter in the payload
+                payload["entry"]=byzantine_entries[int(vessel_id)-1]
+                success = contact_vessel(vessel_ip, path, payload, req)
+                if not success:
+                    print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
 
     # ------------------------------------------------------------------------------------------------------
     # ROUTES
@@ -124,7 +140,6 @@ try:
     # ------------------------------------------------------------------------------------------------------
 
     #Simple methods that the byzantine node calls to decide what to vote.
-
 
     #Compute byzantine votes for round 1, by trying to create
     #a split decision.
@@ -166,7 +181,6 @@ try:
       return result_vectors
 
 
-
     @app.post('/vote/attack')
     def is_attacking():
         global status,node_id
@@ -187,6 +201,7 @@ try:
             print e
         return False
 
+
     @app.post('/vote/retreat')
     def is_retreating():
         global status
@@ -206,11 +221,29 @@ try:
             print e
         return False
 
+
     @app.post('/vote/byzantine')
     def is_byzantine():
-        global status
-
+        global status, amount_of_vessels
         status= 3
+
+        #print str(amount_of_vessels)#debug
+
+        #creates a list of the responces for all nodes (including itself)
+        byzantine_responce = compute_byzantine_vote_round1(amount_of_vessels,1,tie_breaker)
+        print "Byzantine recponces: " + str(byzantine_responce) #debug
+
+        #store our own value
+        responce_vector[int(node_id)-1]= byzantine_responce[int(node_id)-1]
+        print "Responce vector: " + str(responce_vector)
+
+        #Propagate the update to all the other vessels via the byzantine_propagate method
+        path = '/vote/receive/first'
+        tempdict = {"entry" : False, "id": node_id} #True = Attack
+        thread = Thread(target=byzantine_propagate, args=(path,tempdict,'POST',byzantine_responce))
+        thread.daemon=True
+        thread.start()
+
         return "Byzantineing"
 
 
@@ -218,13 +251,14 @@ try:
     def vote_result():
         return str([])
 
+
     @app.post('/vote/receive/first')
     def receive_from_other():
         global responce_vector
         try:
             entry = request.forms.get("entry")
             id = request.forms.get("id")
-            responce_vector[int(id)-1]= entry== 'True'#comparision since entry is a string
+            responce_vector[int(id)-1]= entry== 'True'#string comparision since entry is a string
 
             print str(responce_vector) #debugg
 
@@ -233,12 +267,15 @@ try:
             print e
         return False
 
+
     @app.post('/vote/receive/second')
     def receive_from_other_all():
         global responce_vector
         try:
             entry = request.forms.get("entry")
             id = request.forms.get("id")
+
+            #add the entry to the list with all vectors
             all_vectors[int(id)-1]= entry
 
             print str(all_vectors) #debugg
@@ -247,6 +284,7 @@ try:
         except Exception as e:
             print e
         return False
+
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
     # ------------------------------------------------------------------------------------------------------
@@ -254,7 +292,7 @@ try:
     # a single example (index) should be done for get, and one for post Give it to the students
     # Execute the code
     def main():
-        global vessel_list, node_id, app,amount_of_vessels,responce_vector
+        global vessel_list, node_id, app,amount_of_vessels,responce_vector, all_vectors
 
         port = 80
         parser = argparse.ArgumentParser(description='Your own implementation of the distributed blackboard')
@@ -262,11 +300,12 @@ try:
         parser.add_argument('--vessels', nargs='?', dest='nbv', default=1, type=int, help='The total number of vessels present in the system')
         args = parser.parse_args()
         node_id = args.nid
+        amount_of_vessels = args.nbv -1
 
-        for i in range(1, args.nbv): #fills the vector with "None" as placeholder values
+        for i in range(1, args.nbv): #fills the vectors with "None" as placeholder values
             responce_vector.append(None)
             all_vectors.append(None)
-        print str(responce_vector) #debugg
+
 
         vessel_list = dict()
         for i in range(1, args.nbv):
