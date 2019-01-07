@@ -24,56 +24,15 @@ try:
     board = {}
     # status: 0 = unassigned, 1= attacking 2=retreating 3=byzantine
     status = 0
+
+    # The lists gets filled with n 'None' in main, where n is the total number of nodes
+    #responce_vector is the vector with all the votes of the nodes
+    #all_vectors is the vector with all the responce_vectors of the nodes
     response_vector=[]
     all_vectors=[]
-    tie_breaker_value = True #True for attack to win a tie, False for retreat to win a tie
 
-
-    # ------------------------------------------------------------------------------------------------------
-    # BOARD FUNCTIONS
-    # Should nopt be given to the student
-    # ------------------------------------------------------------------------------------------------------
-    def add_new_element_to_store(entry_sequence, element, is_propagated_call=False):
-        global board, node_id
-        success = False
-        try:
-            #print ("in add_new_element_to_store")#debugtool
-
-            board.update({entry_sequence: element})
-            success = True
-        except Exception as e:
-            print e
-        return success
-
-    def modify_element_in_store(entry_sequence, modified_element, is_propagated_call = False):
-        global board, node_id
-        success = False
-        try:
-            #print ("in modify_element_in_store") #debugtool
-
-            board[entry_sequence]=modified_element
-            success = True
-        except Exception as e:
-            print e
-        return success
-
-    def delete_element_from_store(entry_sequence, is_propagated_call = False):
-        global board, node_id
-        success = False
-        try:
-            #print ("in delete_element_from_store")#debugtool
-            del board[entry_sequence]
-            success = True
-        except Exception as e:
-            print e
-        return success
-
-        #new_post_number checks for the first avaviable key and returns it
-    def new_post_number():
-        i = 0
-        while board.has_key(i):
-            i += 1
-        return i
+    #True for attack to win a tie, False for retreat to win a tie
+    tie_breaker_value = True
 
     # ------------------------------------------------------------------------------------------------------
     # DISTRIBUTED COMMUNICATIONS FUNCTIONS
@@ -99,7 +58,6 @@ try:
         return success
 
     def propagate_to_vessels(path, payload, req):
-        print "Entry in payload: " + str(payload["entry"])#debugtool
         global vessel_list, node_id
 
         for vessel_id, vessel_ip in vessel_list.items():
@@ -109,21 +67,16 @@ try:
                     print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
 
     #a modification of propagate_to_vessels, it allows the "entry" values
-    #to be changed and thus sending different "entry"s to the other nodes
+    #to be changed and thus sending different entry's to the different nodes
     def byzantine_propagate(path, payload, req, byzantine_entries):
         global vessel_list, node_id
 
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
 
-                print "Vessel_id: " + str(vessel_id)#debug
-                print "byzantine_entries: " + str(byzantine_entries)#debug
                 #change the entry parameter in the payload
-
-                print str(byzantine_entries[int(vessel_id)-1])
                 payload["entry"]=byzantine_entries[int(vessel_id)-1]
 
-                print str(payload["entry"])
                 success = contact_vessel(vessel_ip, path, payload, req)
                 if not success:
                     print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
@@ -184,14 +137,14 @@ try:
           result_vectors.append([not on_tie]*no_total)
       return result_vectors
 
-
+    #what happens when some one votes attack
     @app.post('/vote/attack')
     def is_attacking():
         global status,node_id
         try:
+            #set my status and add my vote to my responce_vector
             status= 1
             response_vector[int(node_id)-1]= True
-            print "Attack response_vector: " + str(response_vector) #debugg
 
             #Propagate the update to all the other vessels
             path = '/vote/receive/first'
@@ -200,15 +153,16 @@ try:
             thread.daemon=True
             thread.start()
 
-            #If we have an action from each of the nodes,
+            #If we have an action from each of the nodes, then everyone has voted and
             #its time for the second round and we send our response_vector vector to the other nodes
             if response_vector.count(None)==0:
 
                 #store our own list in the all list
                 all_vectors[node_id -1] = response_vector
 
+                #send my vector
                 path = '/vote/receive/second'
-                tempdict = {"entry" : response_vector, "id": node_id} #True = Attack
+                tempdict = {"entry" : response_vector, "id": node_id}
                 thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
                 thread.daemon=True
                 thread.start()
@@ -218,35 +172,33 @@ try:
             print e
         return False
 
-
+    #what happens when some one votes retreat
     @app.post('/vote/retreat')
     def is_retreating():
         global status
         try:
+            #set my status and add my vote to my responce_vector
             status= 2
             response_vector[int(node_id)-1]= False
-            print "Retreat response_vector" + str(response_vector) #debugg
 
             #Propagate the update to all the other vessels
             path = '/vote/receive/first'
-            tempdict = {"entry" : False, "id": node_id} #True = Attack
+            tempdict = {"entry" : False, "id": node_id} #False = Retreat
             thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
             thread.daemon=True
             thread.start()
 
 
-            #If we have an action from each of the nodes,
+            #if we have an action from each of the nodes, then everyone has voted and
             #its time for the second round and we send our response_vector vector to the other nodes
-            print "Amount of 'None's: " + str(response_vector.count(None))
             if response_vector.count(None)==0:
 
                 #store our own list in the all list
                 all_vectors[node_id -1] = response_vector
-                print "Retreat response_vector 2: " + str(response_vector)
-                print "Retreat all_vectors" + str(all_vectors)
 
+                #send my vector
                 path = '/vote/receive/second'
-                tempdict = {"entry" : response_vector, "id": node_id} #True = Attack
+                tempdict = {"entry" : response_vector, "id": node_id}
                 thread = Thread(target=propagate_to_vessels, args=(path,tempdict,'POST') )
                 thread.daemon=True
                 thread.start()
@@ -256,16 +208,17 @@ try:
             print e
         return False
 
-
+    #what the byzantine does
     @app.post('/vote/byzantine')
     def is_byzantine():
         global status, amount_of_vessels
+
+        #set status
         status= 3
 
-        #print str(amount_of_vessels)#debug
-
-        #creates a list of the responses for all nodes (including itself for simplicity since
-        # it makes the list the right length for the byzantine_propagate method)
+        #creates a list of the responses for all nodes (including itself for
+        #simplicity since it makes the list the right length for the
+        #byzantine_propagate method and for the chek to enter the second phase)
         byzantine_response = compute_byzantine_vote_round1(amount_of_vessels, amount_of_vessels, tie_breaker_value)
         print "Byzantine responses: " + str(byzantine_response) #debug
 
@@ -273,14 +226,14 @@ try:
         response_vector[int(node_id)-1]= byzantine_response[int(node_id)-1]
         print "Byzantine Response vector: " + str(response_vector)
 
-        #Propagate the update to all the other vessels via the byzantine_propagate method
+        #propagate the update to all the other vessels via the byzantine_propagate method
         path = '/vote/receive/first'
         tempdict = {"entry" : False, "id": node_id} #True = Attack
         thread = Thread(target=byzantine_propagate, args=(path, tempdict, 'POST', byzantine_response))
         thread.daemon=True
         thread.start()
 
-        #If we have an action from each of the nodes,its time for the second round
+        #if we have an action from each of the nodes,its time for the second round
         #and time to generate our byzantine response vectors
         if response_vector.count(None)==0:
 
@@ -288,13 +241,13 @@ try:
             byzantine_vectors=compute_byzantine_vote_round2(amount_of_vessels ,amount_of_vessels,tie_breaker_value)
             all_vectors[node_id-1] = byzantine_vectors[node_id-1]
 
+            #propegate to the other vessels via a special byzantine_propegate method
             print "byzantine_vectors: " + str(byzantine_vectors)
             path = '/vote/receive/second'
             tempdict = {"entry" : byzantine_response, "id": node_id} #True = Attack
             thread = Thread(target=byzantine_propagate, args=(path, tempdict, 'POST', byzantine_vectors) )
             thread.daemon=True
             thread.start()
-
 
         return "Byzantineing"
 
@@ -303,91 +256,79 @@ try:
     def vote_result():
         global all_vectors, tie_breaker_value
 
+        #size is the size of the vector of all vectors and it's also the total number of nodes
         size = len(all_vectors)
+
+        #instansiate the final_result_vector and the final result
         final_result_vector = []
         final_result = ""
 
-        #for simplicity
+        #filling the vector with None for easier manipulation of the vector
         for i in range(0,size):
             final_result_vector.append(None)
 
-        #all_vectors[0]= waht vessel 1 recievd from all vessels (including itself)
-        #all_vectors[0][2]=what vessel 3 said to vessel 1 on the first round
-        #for each(x in 4)
-
-        print "length of all vectors: "+str(size)
-
         if all_vectors.count(None)==0:
-            #size = len(all_vectors)
+
+            #inside_index in the outer for since we want colums not rows
             for inside_index in range(0, size):
+
+                #running counter, used to count the amount of True and False values
                 counter = 0
                 for outside_index in range(0, size):
-                    if inside_index != outside_index: #ignore the "diagonal"
+                    #ignore the "diagonal"
+                    if inside_index != outside_index:
 
+                        #if the value is True add 1 to the counter, else subtract 1
                         if all_vectors[outside_index][inside_index]:
                             counter = counter + 1
-                            print "inside_index: "+str(inside_index) + " outside_index: " +str(outside_index) +" counter: "+ str(counter)
                         else:
                             counter = counter - 1
-                            print "inside_index: "+str(inside_index) + " outside_index: " +str(outside_index) +" counter: "+ str(counter)
-
-                print "count of inside_index: " +str(inside_index) + " is: "+ str(counter)
+                        print "inside_index: "+str(inside_index) + " outside_index: " +str(outside_index) +" counter: "+ str(counter)
+                #evaluate the counter and place the result in the final_result_vector
                 if counter > 0:
                     final_result_vector[inside_index] = True
                 elif counter < 0:
                     final_result_vector[inside_index] = False
                 else:
                     final_result_vector[inside_index] = tie_breaker_value
+                print "majority (or tie) is: " + str(final_result_vector[inside_index])
 
-        return str(all_vectors) + "\n" + str(final_result_vector)
-        """
-            #For pretty print and final coun
-
+            #count and return the final_result_vector and return a verdict
             finalcounter = 0
             for final_index in range(0, size):
-
                 if final_result_vector[final_index]:
                     finalcounter = finalcounter + 1
-
                 else:
                     finalcounter = finalcounter - 1
 
-            if finalcounter > 0:
+            if finalcounter + int(tie_breaker_value) > 0:
                 final_result = "Everyone is Attacking"
-
-            elif finalcounter < 0:
+            elif finalcounter <= 0:
                 final_result = "Everyone is Waiting"
+            return "Result vector: " + str(final_result_vector) + " Verdict: " + final_result
 
-            else:
-                if tie_breaker_value:
-                    final_result = "Everyone is Attacking"
-
-                else:
-                    final_result = "Everyone is Waiting"
-
-            return str(final_result_vector) + "/n" + str(all_vectors) + "/n" + final_result
-
+        #if the all_vectors vector contains a null, then not every node has voted yet
         else:
             return "Not every one has voted"
-            """
 
-
+    #what happens during the first election cycle of the algorithm
     @app.post('/vote/receive/first')
     def receive_from_other():
         global response_vector, status,all_vectors
         try:
+            #get the entry and id of sender
             entry = request.forms.get("entry")
             id = request.forms.get("id")
-            response_vector[int(id)-1]= entry== 'True'#string comparision since entry is a string
 
-            print "Receive first's response_vector: " + str(response_vector) #debugg
-            print "From: " + str(id)
+            #string comparision since entry is a string (cleaning the value)
+            response_vector[int(id)-1]= entry== 'True'
 
             #If we have an action from each of the nodes,
-            #its time for the second round
-            #but we need to check the status aswell to se if this node is a byzantine (since byzantines does byzantine stuff)
+            #its time for the second round of the algorithm and we check
+            #the status to se if this node is a byzantine (since byzantines does byzantine stuff)
             if response_vector.count(None)==0:
                 if status != 3:
+
                     #store the received list in the all-list list
                     all_vectors[node_id -1] = response_vector
 
@@ -398,11 +339,12 @@ try:
                     thread.start()
                 else:
 
-                    #store the received list in the all-list list
-
+                    #generate byzantine votes and insert our newly generated one to all_vectors
+                    #(once again including itself in the generation for simpler handeling of the vectors)
                     byzantine_vectors=compute_byzantine_vote_round2(amount_of_vessels,amount_of_vessels,tie_breaker_value)
                     all_vectors[node_id -1] = byzantine_vectors[node_id -1]
 
+                    #propegate to the other vessels via a special byzantine_propegate method
                     path = '/vote/receive/second'
                     tempdict = {"entry" : response_vector, "id": node_id} #True = Attack
                     thread = Thread(target=byzantine_propagate, args=(path, tempdict, 'POST', byzantine_vectors) )
@@ -419,11 +361,9 @@ try:
     def receive_from_other_all():
         global all_vectors
         try:
+            #get the entries and the id of the sender
             entry = request.forms.getall("entry")
             id = request.forms.get("id")
-            print "Entry in receive second: " + str(entry)
-            print "From in receive second: " + str(id)
-
 
             #need to clean up the entry since request.form.getall returns the
             #list of bools as a list of strings
@@ -432,8 +372,6 @@ try:
 
             #add the cleaned entry to the list of all vectors
             all_vectors[int(id)-1]= entry
-
-            print "All vectors: " + str(all_vectors) #debugg
 
             return {"entry":entry, "id":id}
         except Exception as e:
