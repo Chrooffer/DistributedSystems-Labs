@@ -219,12 +219,15 @@ try:
         #creates a list of the responses for all nodes (including itself for
         #simplicity since it makes the list the right length for the
         #byzantine_propagate method and for the chek to enter the second phase)
-        byzantine_response = compute_byzantine_vote_round1(amount_of_vessels, amount_of_vessels, tie_breaker_value)
+        byzantine_response = compute_byzantine_vote_round1(amount_of_vessels-1, amount_of_vessels, tie_breaker_value)
         print "Byzantine responses: " + str(byzantine_response) #debug
 
-        #store our own value
-        response_vector[int(node_id)-1]= byzantine_response[int(node_id)-1]
-        print "Byzantine Response vector: " + str(response_vector)
+        #store a value for us in responces and byzantine_responses(neded inorder to make the
+        #lists into the right length, its our own value and wont be sent to the other nodes anyway)
+        response_vector[node_id-1] = not tie_breaker_value
+        byzantine_response.insert(node_id-1, not tie_breaker_value)
+
+        print "Byzantine Response vector: " + str(byzantine_response) #debug
 
         #propagate the update to all the other vessels via the byzantine_propagate method
         path = '/vote/receive/first'
@@ -237,9 +240,13 @@ try:
         #and time to generate our byzantine response vectors
         if response_vector.count(None)==0:
 
-            #generate byzantine votes and add our newly generated vector to all_vectors
-            byzantine_vectors=compute_byzantine_vote_round2(amount_of_vessels ,amount_of_vessels,tie_breaker_value)
-            all_vectors[node_id-1] = byzantine_vectors[node_id-1]
+            #generate byzantine votes and add our vector to our all_vectors
+            byzantine_vectors=compute_byzantine_vote_round2(amount_of_vessels-1,amount_of_vessels,tie_breaker_value)
+            all_vectors[node_id-1] = response_vector
+
+            #pad byzantine_vectors so it has the right length (by including our value,
+            #and it wont be sent by byzantine_propagate anyway)
+            byzantine_vectors.insert(node_id-1,response_vector)
 
             #propegate to the other vessels via a special byzantine_propegate method
             print "byzantine_vectors: " + str(byzantine_vectors)
@@ -339,10 +346,12 @@ try:
                     thread.start()
                 else:
 
-                    #generate byzantine votes and insert our newly generated one to all_vectors
-                    #(once again including itself in the generation for simpler handeling of the vectors)
-                    byzantine_vectors=compute_byzantine_vote_round2(amount_of_vessels,amount_of_vessels,tie_breaker_value)
-                    all_vectors[node_id -1] = byzantine_vectors[node_id -1]
+                    #generate byzantine votes and insert our own
+                    byzantine_vectors=compute_byzantine_vote_round2(amount_of_vessels-1,amount_of_vessels,tie_breaker_value)
+                    all_vectors[node_id-1] = response_vector
+
+                    #pad byzantine_vectors so it has the right length (by including our value, and it wont be sent anyway)
+                    byzantine_vectors.insert(node_id-1,response_vector)
 
                     #propegate to the other vessels via a special byzantine_propegate method
                     path = '/vote/receive/second'
